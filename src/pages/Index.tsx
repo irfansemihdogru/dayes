@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import FaceRecognition from '@/components/FaceRecognition';
 import MainMenu from '@/components/MainMenu';
@@ -5,6 +6,9 @@ import GradeSelection from '@/components/GradeSelection';
 import AttendanceForm from '@/components/AttendanceForm';
 import AttendanceResult from '@/components/AttendanceResult';
 import StaffDirectionResult from '@/components/StaffDirectionResult';
+import VoiceRecognition from '@/components/VoiceRecognition';
+import { processVoiceCommand } from '@/utils/geminiApi';
+import { useToast } from '@/hooks/use-toast';
 
 type AppState = 
   | 'face-recognition'
@@ -38,6 +42,20 @@ const Index = () => {
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [studentName, setStudentName] = useState<string>('');
   const [directedStaff, setDirectedStaff] = useState<string>('');
+  const [isListening, setIsListening] = useState(false);
+  const [voicePrompt, setVoicePrompt] = useState<string>('');
+  const { toast } = useToast();
+  
+  // Handle face detection to start app
+  const handleFaceDetected = () => {
+    if (appState === 'face-recognition') {
+      setTimeout(() => {
+        setAppState('main-menu');
+        setIsListening(true);
+        setVoicePrompt('Yapmak istediğiniz işlemi söyleyiniz');
+      }, 1500);
+    }
+  };
   
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -50,18 +68,39 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
   
+  // Set appropriate voice prompts based on app state
+  useEffect(() => {
+    switch (appState) {
+      case 'face-recognition':
+        setVoicePrompt('');
+        setIsListening(false);
+        break;
+      case 'main-menu':
+        setVoicePrompt('Yapmak istediğiniz işlemi söyleyiniz');
+        setIsListening(true);
+        break;
+      case 'grade-selection':
+        setVoicePrompt('Öğrenciniz kaçıncı sınıf?');
+        setIsListening(true);
+        break;
+      case 'attendance-form':
+        // Voice recognition handled in the form
+        setIsListening(false);
+        break;
+      case 'attendance-result':
+      case 'staff-direction':
+        setIsListening(false);
+        break;
+    }
+  }, [appState]);
+  
   const resetApp = () => {
     setAppState('face-recognition');
     setSelectedService('');
     setSelectedGrade(null);
     setStudentName('');
     setDirectedStaff('');
-  };
-  
-  const handleFaceDetected = () => {
-    setTimeout(() => {
-      setAppState('main-menu');
-    }, 1500);
+    setIsListening(false);
   };
   
   const handleServiceSelection = (service: string) => {
@@ -97,6 +136,42 @@ const Index = () => {
     setAppState('attendance-result');
   };
   
+  const handleVoiceResult = async (text: string) => {
+    try {
+      const result = await processVoiceCommand(text);
+      
+      toast({
+        title: "Ses komutu algılandı",
+        description: text,
+        duration: 3000
+      });
+      
+      console.log("Gemini API result:", result);
+      
+      if (appState === 'main-menu') {
+        // Handle service selection based on voice
+        if (result.intent) {
+          if (['mesem', 'usta-ogreticilik-belgesi', 'diploma', 'disiplin', 'ogrenci-alma-izni', '9-sinif-kayit', 'devamsizlik'].includes(result.intent)) {
+            handleServiceSelection(result.intent);
+          }
+        }
+      } else if (appState === 'grade-selection' && result.grade) {
+        // Handle grade selection
+        const grade = parseInt(result.grade);
+        if ([9, 10, 11, 12].includes(grade)) {
+          handleGradeSelection(grade);
+        }
+      }
+    } catch (error) {
+      console.error("Error processing voice command:", error);
+      toast({
+        title: "Hata",
+        description: "Ses komutunuz işlenirken bir hata oluştu.",
+        variant: "destructive"
+      });
+    }
+  };
+  
   const getServiceDisplayName = () => {
     const serviceMap: Record<string, string> = {
       'mesem': 'Mesem',
@@ -124,11 +199,29 @@ const Index = () => {
           )}
           
           {appState === 'main-menu' && (
-            <MainMenu onSelection={handleServiceSelection} />
+            <>
+              <MainMenu onSelection={handleServiceSelection} />
+              {isListening && (
+                <VoiceRecognition 
+                  isListening={isListening} 
+                  onResult={handleVoiceResult}
+                  prompt={voicePrompt}
+                />
+              )}
+            </>
           )}
           
           {appState === 'grade-selection' && (
-            <GradeSelection onSelection={handleGradeSelection} />
+            <>
+              <GradeSelection onSelection={handleGradeSelection} />
+              {isListening && (
+                <VoiceRecognition 
+                  isListening={isListening} 
+                  onResult={handleVoiceResult}
+                  prompt={voicePrompt}
+                />
+              )}
+            </>
           )}
           
           {appState === 'attendance-form' && (
