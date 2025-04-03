@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 interface VoiceRecognitionProps {
   isListening: boolean;
@@ -40,9 +40,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [recognitionSupported, setRecognitionSupported] = useState(true);
   const [manualInput, setManualInput] = useState('');
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const isRecognitionActiveRef = useRef(false);
   
   // Initialize speech recognition
-  const recognition = useCallback(() => {
+  const initRecognition = useCallback(() => {
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -51,112 +53,116 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         return null;
       }
       
-      const recognitionInstance = new SpeechRecognition();
-      recognitionInstance.continuous = true;
-      recognitionInstance.interimResults = true;
-      recognitionInstance.lang = 'tr-TR'; // Turkish language
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'tr-TR'; // Turkish language
       
-      return recognitionInstance;
+      recognition.onresult = (event) => {
+        const current = event.resultIndex;
+        const result = event.results[current];
+        const transcriptValue = result[0].transcript;
+        
+        console.log('Speech recognition result:', transcriptValue);
+        setTranscript(transcriptValue);
+        
+        if (result.isFinal) {
+          onResult(transcriptValue);
+          setTranscript('');
+        }
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error', event.error);
+        setError(`Ses tanıma hatası: ${event.error}`);
+        
+        // Don't try to restart after error, just clear the active state
+        isRecognitionActiveRef.current = false;
+      };
+      
+      recognition.onend = () => {
+        console.log('Speech recognition session ended');
+        isRecognitionActiveRef.current = false;
+        
+        // Only try to restart if we're still supposed to be listening
+        if (isListening) {
+          setTimeout(() => {
+            startRecognition();
+          }, 300);
+        } else if (onListeningEnd) {
+          onListeningEnd();
+        }
+      };
+      
+      return recognition;
     } catch (err) {
       console.error('Failed to initialize speech recognition:', err);
       setRecognitionSupported(false);
       return null;
     }
-  }, []);
+  }, [isListening, onListeningEnd, onResult]);
   
-  useEffect(() => {
-    const recognitionInstance = recognition();
-    let restartTimeout: NodeJS.Timeout | null = null;
-    
-    if (!recognitionInstance) {
-      console.log('Recognition not supported, falling back to manual input');
+  const startRecognition = useCallback(() => {
+    // Don't start if we're already active
+    if (isRecognitionActiveRef.current) {
+      console.log('Recognition already active, not starting again');
       return;
     }
     
-    if (isListening) {
-      try {
-        recognitionInstance.onresult = (event) => {
-          const current = event.resultIndex;
-          const result = event.results[current];
-          const transcriptValue = result[0].transcript;
-          
-          console.log('Speech recognition result:', transcriptValue);
-          setTranscript(transcriptValue);
-          
-          if (result.isFinal) {
-            onResult(transcriptValue);
-            setTranscript('');
-          }
-        };
-        
-        recognitionInstance.onerror = (event) => {
-          console.error('Speech recognition error', event.error);
-          setError(`Ses tanıma hatası: ${event.error}`);
-          
-          // Attempt to restart recognition after error
-          if (restartTimeout) clearTimeout(restartTimeout);
-          restartTimeout = setTimeout(() => {
-            try {
-              recognitionInstance.stop();
-              setTimeout(() => {
-                if (isListening) recognitionInstance.start();
-              }, 500);
-            } catch (e) {
-              console.error('Failed to restart after error:', e);
-            }
-          }, 1000);
-        };
-        
-        recognitionInstance.onend = () => {
-          console.log('Speech recognition session ended');
-          if (isListening) {
-            // Restart if we're still supposed to be listening
-            try {
-              setTimeout(() => {
-                recognitionInstance.start();
-                console.log('Restarted speech recognition');
-              }, 500);
-            } catch (err) {
-              console.error('Failed to restart speech recognition:', err);
-              setError('Ses tanıma yeniden başlatılamadı');
-            }
-          } else if (onListeningEnd) {
-            onListeningEnd();
-          }
-        };
-        
-        try {
-          recognitionInstance.start();
-          console.log('Started speech recognition');
-        } catch (startErr) {
-          console.error('Failed to start speech recognition:', startErr);
-          setError('Ses tanıma başlatılamadı');
-        }
-      } catch (err) {
-        console.error('Error setting up speech recognition:', err);
-        setError('Ses tanıma ayarlanamadı');
+    try {
+      // Initialize recognition if needed
+      if (!recognitionRef.current) {
+        recognitionRef.current = initRecognition();
       }
       
-      return () => {
-        try {
-          recognitionInstance.stop();
-          console.log('Stopped speech recognition');
-          if (restartTimeout) clearTimeout(restartTimeout);
-        } catch (err) {
-          console.error('Error stopping recognition:', err);
-        }
-      };
-    } else if (recognitionInstance) {
-      try {
-        recognitionInstance.stop();
-        console.log('Stopped speech recognition');
-        if (restartTimeout) clearTimeout(restartTimeout);
-      } catch (err) {
-        console.error('Error stopping recognition:', err);
+      const recognition = recognitionRef.current;
+      if (!recognition) {
+        console.log('No recognition instance available');
+        return;
       }
+      
+      // Start recognition
+      recognition.start();
+      isRecognitionActiveRef.current = true;
+      console.log('Started speech recognition');
+      setError(null);
+    } catch (err) {
+      console.error('Error starting recognition:', err);
+      setError('Ses tanıma başlatılamadı');
+      isRecognitionActiveRef.current = false;
+      
+      // If we got an error, reset the recognition instance to try again next time
+      recognitionRef.current = null;
+    }
+  }, [initRecognition]);
+  
+  const stopRecognition = useCallback(() => {
+    if (!isRecognitionActiveRef.current || !recognitionRef.current) {
+      return;
+    }
+    
+    try {
+      recognitionRef.current.stop();
+      isRecognitionActiveRef.current = false;
+      console.log('Stopped speech recognition');
+    } catch (err) {
+      console.error('Error stopping recognition:', err);
+    }
+  }, []);
+  
+  // Manage recognition based on isListening prop
+  useEffect(() => {
+    if (isListening) {
+      startRecognition();
+    } else {
+      stopRecognition();
       setTranscript('');
     }
-  }, [isListening, onListeningEnd, onResult, recognition]);
+    
+    return () => {
+      stopRecognition();
+    };
+  }, [isListening, startRecognition, stopRecognition]);
   
   // For fallback if speech recognition is not supported
   const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

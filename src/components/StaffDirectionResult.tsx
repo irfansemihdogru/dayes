@@ -16,17 +16,25 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   onTimeout 
 }) => {
   const [location, setLocation] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(30);
   
   useEffect(() => {
     // Generate random location when component mounts
     setLocation(getRandomRoomLocation());
     
-    // Set timeout to return to main screen
-    const timer = setTimeout(() => {
-      onTimeout();
-    }, 30000);
+    // Set countdown timer
+    const timer = setInterval(() => {
+      setSecondsLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          onTimeout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
     
-    return () => clearTimeout(timer);
+    return () => clearInterval(timer);
   }, [onTimeout]);
   
   return (
@@ -55,7 +63,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         </div>
         
         <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Bu ekran 30 saniye sonra otomatik olarak kapanacaktır.</p>
+          <p>Bu ekran {secondsLeft} saniye sonra otomatik olarak kapanacaktır.</p>
         </div>
       </CardContent>
     </Card>
