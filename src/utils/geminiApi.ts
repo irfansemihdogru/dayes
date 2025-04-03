@@ -5,6 +5,7 @@ export interface GeminiResponse {
   text: string;
   intent?: string;
   confidence?: number;
+  grade?: string;
 }
 
 export async function processVoiceCommand(text: string): Promise<GeminiResponse> {

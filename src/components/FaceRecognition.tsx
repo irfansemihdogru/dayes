@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Webcam } from './Webcam';
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -9,29 +9,66 @@ interface FaceRecognitionProps {
 
 const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected }) => {
   const [detecting, setDetecting] = useState(true);
+  const detectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [detectedCount, setDetectedCount] = useState(0);
   
   // Listen for the faceDetected event from the Webcam component
-  const handleFaceDetection = () => {
-    if (detecting) {
-      setDetecting(false);
-      onDetected();
+  const handleFaceDetection = (detected: boolean) => {
+    console.log('Face detection status:', detected);
+    
+    if (!detecting) return;
+    
+    if (detected) {
+      // Increment detection count to make the detection more reliable
+      setDetectedCount(prev => {
+        const newCount = prev + 1;
+        console.log('Face detection count:', newCount);
+        
+        // After 3 consecutive detections, trigger the detected event
+        if (newCount >= 3) {
+          console.log('Face reliably detected, triggering onDetected');
+          setDetecting(false);
+          if (detectionTimeoutRef.current) {
+            clearTimeout(detectionTimeoutRef.current);
+          }
+          onDetected();
+          return newCount;
+        }
+        return newCount;
+      });
+    } else {
+      // Reset the counter if face is lost
+      setDetectedCount(0);
     }
   };
 
   // Use a global event listener for face detection events
   useEffect(() => {
-    const handleFaceEvent = (event: CustomEvent) => {
-      if (event.detail.detected) {
-        handleFaceDetection();
+    const handleFaceEvent = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.detected !== undefined) {
+        handleFaceDetection(customEvent.detail.detected);
       }
     };
     
-    window.addEventListener('faceDetected' as any, handleFaceEvent);
+    window.addEventListener('faceDetected', handleFaceEvent);
+    
+    // Set a fallback timeout in case face detection doesn't work
+    detectionTimeoutRef.current = setTimeout(() => {
+      console.log('Face detection timeout, forcing onDetected');
+      if (detecting) {
+        setDetecting(false);
+        onDetected();
+      }
+    }, 15000); // 15 seconds timeout
     
     return () => {
-      window.removeEventListener('faceDetected' as any, handleFaceEvent);
+      window.removeEventListener('faceDetected', handleFaceEvent);
+      if (detectionTimeoutRef.current) {
+        clearTimeout(detectionTimeoutRef.current);
+      }
     };
-  }, [detecting]);
+  }, [detecting, onDetected]);
 
   return (
     <Card className="w-full max-w-3xl bg-white/80 backdrop-blur-sm shadow-lg">
@@ -48,7 +85,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected }) => {
           </div>
           <p className="text-gray-600">
             {detecting 
-              ? "Yüzünüz tanınıyor, lütfen bekleyin..." 
+              ? "Yüzünüz tanınıyor, lütfen kameraya bakınız..." 
               : "Yüzünüz başarıyla tanındı, uygulama başlatılıyor..."}
           </p>
         </div>
