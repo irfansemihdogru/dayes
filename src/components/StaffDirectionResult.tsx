@@ -1,7 +1,8 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserRoundIcon } from 'lucide-react';
+import { UserRoundIcon, MapPinIcon } from 'lucide-react';
+import { getRandomRoomLocation } from '@/utils/locationUtils';
 
 interface StaffDirectionResultProps {
   staffName: string;
@@ -14,7 +15,12 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   reason,
   onTimeout 
 }) => {
+  const [location, setLocation] = useState('');
+  
   useEffect(() => {
+    // Generate random location when component mounts
+    setLocation(getRandomRoomLocation());
+    
     // Set timeout to return to main screen
     const timer = setTimeout(() => {
       onTimeout();
@@ -38,9 +44,14 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         <h2 className="text-3xl font-bold text-blue-800 mb-2">{staffName}</h2>
         <p className="text-lg text-gray-600 mb-6">Personeline yönlendiriliyorsunuz</p>
         
-        <div className="p-4 bg-blue-50 rounded-lg mb-6">
+        <div className="p-4 bg-blue-50 rounded-lg mb-4">
           <p className="text-sm text-gray-600 mb-1">İşlem</p>
           <p className="text-xl font-medium text-blue-800">{reason}</p>
+        </div>
+        
+        <div className="p-4 bg-green-50 rounded-lg mb-6 flex items-center justify-center">
+          <MapPinIcon className="text-green-600 mr-2" size={24} />
+          <p className="text-xl font-medium text-green-800">{location}</p>
         </div>
         
         <div className="mt-6 text-center text-sm text-gray-600">

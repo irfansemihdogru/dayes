@@ -39,12 +39,14 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [recognitionSupported, setRecognitionSupported] = useState(true);
+  const [manualInput, setManualInput] = useState('');
   
   // Initialize speech recognition
   const recognition = useCallback(() => {
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
+        console.error('Speech Recognition API is not supported in this browser');
         setRecognitionSupported(false);
         return null;
       }
@@ -56,6 +58,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       
       return recognitionInstance;
     } catch (err) {
+      console.error('Failed to initialize speech recognition:', err);
       setRecognitionSupported(false);
       return null;
     }
@@ -63,8 +66,12 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   
   useEffect(() => {
     const recognitionInstance = recognition();
+    let restartTimeout: NodeJS.Timeout | null = null;
     
-    if (!recognitionInstance) return;
+    if (!recognitionInstance) {
+      console.log('Recognition not supported, falling back to manual input');
+      return;
+    }
     
     if (isListening) {
       try {
@@ -73,6 +80,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           const result = event.results[current];
           const transcriptValue = result[0].transcript;
           
+          console.log('Speech recognition result:', transcriptValue);
           setTranscript(transcriptValue);
           
           if (result.isFinal) {
@@ -84,25 +92,56 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         recognitionInstance.onerror = (event) => {
           console.error('Speech recognition error', event.error);
           setError(`Ses tanıma hatası: ${event.error}`);
+          
+          // Attempt to restart recognition after error
+          if (restartTimeout) clearTimeout(restartTimeout);
+          restartTimeout = setTimeout(() => {
+            try {
+              recognitionInstance.stop();
+              setTimeout(() => {
+                if (isListening) recognitionInstance.start();
+              }, 500);
+            } catch (e) {
+              console.error('Failed to restart after error:', e);
+            }
+          }, 1000);
         };
         
         recognitionInstance.onend = () => {
+          console.log('Speech recognition session ended');
           if (isListening) {
-            recognitionInstance.start(); // Restart if we're still supposed to be listening
+            // Restart if we're still supposed to be listening
+            try {
+              setTimeout(() => {
+                recognitionInstance.start();
+                console.log('Restarted speech recognition');
+              }, 500);
+            } catch (err) {
+              console.error('Failed to restart speech recognition:', err);
+              setError('Ses tanıma yeniden başlatılamadı');
+            }
           } else if (onListeningEnd) {
             onListeningEnd();
           }
         };
         
-        recognitionInstance.start();
+        try {
+          recognitionInstance.start();
+          console.log('Started speech recognition');
+        } catch (startErr) {
+          console.error('Failed to start speech recognition:', startErr);
+          setError('Ses tanıma başlatılamadı');
+        }
       } catch (err) {
-        console.error('Failed to start speech recognition:', err);
-        setError('Ses tanıma başlatılamadı');
+        console.error('Error setting up speech recognition:', err);
+        setError('Ses tanıma ayarlanamadı');
       }
       
       return () => {
         try {
           recognitionInstance.stop();
+          console.log('Stopped speech recognition');
+          if (restartTimeout) clearTimeout(restartTimeout);
         } catch (err) {
           console.error('Error stopping recognition:', err);
         }
@@ -110,6 +149,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     } else if (recognitionInstance) {
       try {
         recognitionInstance.stop();
+        console.log('Stopped speech recognition');
+        if (restartTimeout) clearTimeout(restartTimeout);
       } catch (err) {
         console.error('Error stopping recognition:', err);
       }
@@ -118,15 +159,16 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   }, [isListening, onListeningEnd, onResult, recognition]);
   
   // For fallback if speech recognition is not supported
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTranscript(e.target.value);
+  const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setManualInput(e.target.value);
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (transcript.trim()) {
-      onResult(transcript);
-      setTranscript('');
+    if (manualInput.trim()) {
+      console.log('Manual input submitted:', manualInput);
+      onResult(manualInput);
+      setManualInput('');
     }
   };
   
@@ -153,25 +195,24 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         </div>
       )}
       
-      {!recognitionSupported && (
-        <form onSubmit={handleSubmit} className="mt-2 flex">
-          <input
-            type="text"
-            value={transcript}
-            onChange={handleInputChange}
-            placeholder="Sesli komut simülasyonu için buraya yazın"
-            className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={!isListening}
-          />
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors"
-            disabled={!isListening}
-          >
-            Gönder
-          </button>
-        </form>
-      )}
+      {/* Always show manual input as a fallback */}
+      <form onSubmit={handleManualSubmit} className="mt-2 flex">
+        <input
+          type="text"
+          value={manualInput}
+          onChange={handleManualInputChange}
+          placeholder="Sesli komut girmek için buraya yazın"
+          className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={!isListening}
+        />
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors"
+          disabled={!isListening}
+        >
+          Gönder
+        </button>
+      </form>
     </div>
   );
 };

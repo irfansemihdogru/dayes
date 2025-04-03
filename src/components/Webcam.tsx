@@ -1,64 +1,80 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 
-declare global {
-  interface Window {
-    headtrackr: any;
-  }
-}
-
 export const Webcam: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [headtrackrLoaded, setHeadtrackrLoaded] = useState(false);
-  const [headtracker, setHeadtracker] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [trackingStarted, setTrackingStarted] = useState(false);
   
-  // Load headtrackr.js script
+  // Load headtrackr.js directly from a more reliable CDN
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/headtrackr@1.0.3/headtrackr.min.js';
-    script.async = true;
-    script.onload = () => {
-      setHeadtrackrLoaded(true);
-      console.log('Headtrackr script loaded successfully');
-    };
-    script.onerror = () => {
-      setErrorMessage('Headtrackr script yüklenemedi.');
-      console.error('Failed to load headtrackr script');
-    };
-    document.body.appendChild(script);
-    
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-  
-  // Initialize headtrackr once the script is loaded
-  useEffect(() => {
-    if (!headtrackrLoaded || !videoRef.current || !canvasRef.current) return;
-    
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-    
-    const handleFaceDetection = (detected: boolean) => {
-      setFaceDetected(detected);
-      // Dispatch a custom event that can be listened to elsewhere
-      const event = new CustomEvent('faceDetected', { 
-        detail: { detected } 
-      });
-      window.dispatchEvent(event);
-      
-      if (detected) {
-        console.log('Face detected!');
+    const loadScript = () => {
+      try {
+        // Remove any existing script to avoid conflicts
+        const existingScript = document.getElementById('headtrackr-script');
+        if (existingScript) {
+          document.body.removeChild(existingScript);
+        }
+        
+        const script = document.createElement('script');
+        script.id = 'headtrackr-script';
+        script.src = 'https://unpkg.com/headtrackr@1.0.3/dist/headtrackr.js';
+        script.async = true;
+        
+        script.onload = () => {
+          console.log('Headtrackr script loaded successfully');
+          setScriptLoaded(true);
+        };
+        
+        script.onerror = (e) => {
+          console.error('Failed to load headtrackr script', e);
+          setErrorMessage('Headtrackr yüklenemedi. Yüz tanıma manuel olarak atlanacak.');
+          
+          // Fallback: simulate face detection after a timeout
+          setTimeout(() => {
+            handleFaceDetection(true);
+          }, 5000);
+        };
+        
+        document.body.appendChild(script);
+      } catch (error) {
+        console.error('Error during script loading:', error);
+        setErrorMessage('Script yükleme hatası');
       }
     };
     
-    let htracker: any = null;
+    loadScript();
     
-    // Get camera access
+    return () => {
+      const script = document.getElementById('headtrackr-script');
+      if (script) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
+  
+  const handleFaceDetection = (detected: boolean) => {
+    setFaceDetected(detected);
+    // Dispatch a custom event that can be listened to elsewhere
+    const event = new CustomEvent('faceDetected', { 
+      detail: { detected } 
+    });
+    window.dispatchEvent(event);
+    
+    if (detected) {
+      console.log('Face detected!');
+    }
+  };
+  
+  // Initialize camera
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    const video = videoRef.current;
+    
     navigator.mediaDevices.getUserMedia({ 
       video: { 
         width: { ideal: 640 },
@@ -68,17 +84,48 @@ export const Webcam: React.FC = () => {
     })
     .then((stream) => {
       video.srcObject = stream;
-      video.play();
-      
-      // Configure canvas size to match video
-      setTimeout(() => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-      }, 500);
-      
-      // Start headtracking
-      try {
-        htracker = new window.headtrackr.Tracker({
+      video.play()
+        .then(() => {
+          console.log('Video playback started');
+          
+          // Configure canvas size to match video
+          if (canvasRef.current) {
+            const canvas = canvasRef.current;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+          }
+        })
+        .catch(err => {
+          console.error("Error playing video:", err);
+          setErrorMessage('Video oynatma hatası');
+        });
+    })
+    .catch(err => {
+      console.error("Error accessing the camera:", err);
+      setErrorMessage('Kamera erişimi sağlanamadı. Lütfen kamera izinlerini kontrol ediniz.');
+    });
+    
+    return () => {
+      if (video.srcObject) {
+        const tracks = (video.srcObject as MediaStream).getTracks();
+        tracks.forEach(track => track.stop());
+      }
+    };
+  }, []);
+  
+  // Initialize headtracking once the script is loaded
+  useEffect(() => {
+    if (!scriptLoaded || trackingStarted || !videoRef.current || !canvasRef.current) return;
+    
+    try {
+      // Check if headtrackr is available globally
+      if (typeof window.headtrackr !== 'undefined') {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        
+        console.log('Starting headtracking');
+        
+        const htracker = new window.headtrackr.Tracker({
           calcAngles: true,
           ui: false,
           headPosition: false,
@@ -86,7 +133,7 @@ export const Webcam: React.FC = () => {
           detectionInterval: 100  // Check for face every 100ms
         });
         
-        setHeadtracker(htracker);
+        setTrackingStarted(true);
         
         htracker.init(video, canvas);
         htracker.start();
@@ -107,30 +154,36 @@ export const Webcam: React.FC = () => {
             handleFaceDetection(false);
           }
         });
-      } catch (error) {
-        console.error('Error initializing headtracker:', error);
-        setErrorMessage('Yüz takibi başlatılamadı.');
+        
+        return () => {
+          htracker.stop();
+          document.removeEventListener('facetrackingEvent', () => {});
+          document.removeEventListener('headtrackrStatusEvent', () => {});
+        };
+      } else {
+        console.error('Headtrackr not available after script load');
+        setErrorMessage('Headtrackr yüklenemedi. Yüz tanıma manuel olarak atlanacak.');
+        
+        // Fallback: simulate face detection after a timeout
+        setTimeout(() => {
+          handleFaceDetection(true);
+        }, 5000);
       }
-    })
-    .catch(err => {
-      console.error("Error accessing the camera:", err);
-      setErrorMessage('Kamera erişimi sağlanamadı. Lütfen kamera izinlerini kontrol ediniz.');
-    });
-    
-    return () => {
-      if (htracker) {
-        htracker.stop();
-      }
+    } catch (error) {
+      console.error('Error initializing headtracker:', error);
+      setErrorMessage('Yüz takibi başlatılamadı.');
       
-      if (video.srcObject) {
-        const tracks = (video.srcObject as MediaStream).getTracks();
-        tracks.forEach(track => track.stop());
-      }
-      
-      document.removeEventListener('facetrackingEvent', () => {});
-      document.removeEventListener('headtrackrStatusEvent', () => {});
-    };
-  }, [headtrackrLoaded]);
+      // Fallback: simulate face detection after a timeout
+      setTimeout(() => {
+        handleFaceDetection(true);
+      }, 5000);
+    }
+  }, [scriptLoaded, trackingStarted]);
+  
+  // Provide a manual way to bypass face detection if needed
+  const handleManualDetection = () => {
+    handleFaceDetection(true);
+  };
   
   return (
     <div className="w-full h-full relative">
@@ -151,6 +204,12 @@ export const Webcam: React.FC = () => {
       {errorMessage && (
         <div className="absolute top-0 left-0 w-full bg-red-500 text-white p-2 text-center">
           {errorMessage}
+          <button 
+            onClick={handleManualDetection}
+            className="ml-2 bg-white text-red-500 px-2 py-1 rounded text-sm"
+          >
+            Devam Et
+          </button>
         </div>
       )}
       
@@ -166,3 +225,10 @@ export const Webcam: React.FC = () => {
     </div>
   );
 };
+
+// Add the headtrackr type definition to the global window object
+declare global {
+  interface Window {
+    headtrackr: any;
+  }
+}
