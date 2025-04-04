@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 
 interface VoiceRecognitionProps {
   isListening: boolean;
@@ -40,6 +41,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [recognitionSupported, setRecognitionSupported] = useState(true);
   const [manualInput, setManualInput] = useState('');
+  const [processingVoice, setProcessingVoice] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isRecognitionActiveRef = useRef(false);
   
@@ -67,17 +69,37 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         setTranscript(transcriptValue);
         
         if (result.isFinal) {
+          setProcessingVoice(true);
           onResult(transcriptValue);
-          setTranscript('');
+          setTimeout(() => {
+            setProcessingVoice(false);
+            setTranscript('');
+          }, 1000);
         }
       };
       
       recognition.onerror = (event) => {
         console.error('Speech recognition error', event.error);
-        setError(`Ses tanıma hatası: ${event.error}`);
+        
+        if (event.error === 'aborted') {
+          setError('Ses tanıma iptal edildi. Lütfen tekrar deneyin.');
+        } else if (event.error === 'no-speech') {
+          setError('Ses algılanamadı. Lütfen daha yüksek sesle konuşun.');
+        } else if (event.error === 'network') {
+          setError('Ağ hatası. Lütfen internet bağlantınızı kontrol edin.');
+        } else {
+          setError(`Ses tanıma hatası: ${event.error}`);
+        }
         
         // Don't try to restart after error, just clear the active state
         isRecognitionActiveRef.current = false;
+        
+        // Try to restart after a short delay
+        setTimeout(() => {
+          if (isListening) {
+            startRecognition();
+          }
+        }, 1000);
       };
       
       recognition.onend = () => {
@@ -133,8 +155,15 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       
       // If we got an error, reset the recognition instance to try again next time
       recognitionRef.current = null;
+      
+      // Try to restart after a short delay
+      setTimeout(() => {
+        if (isListening) {
+          startRecognition();
+        }
+      }, 1500);
     }
-  }, [initRecognition]);
+  }, [initRecognition, isListening]);
   
   const stopRecognition = useCallback(() => {
     if (!isRecognitionActiveRef.current || !recognitionRef.current) {
@@ -180,23 +209,51 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   
   return (
     <div className="mt-4">
-      {prompt && <p className="text-lg text-blue-800 mb-2">{prompt}</p>}
+      {prompt && (
+        <div className="flex items-center mb-2">
+          <p className="text-lg text-blue-800">{prompt}</p>
+          <button 
+            onClick={() => prompt && window.speechSynthesis.speak(new SpeechSynthesisUtterance(prompt))}
+            className="ml-2 p-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+            aria-label="Metni sesli dinle"
+          >
+            <span role="img" aria-label="sesli dinle">🔊</span>
+          </button>
+        </div>
+      )}
       
       <div className="flex items-center">
-        <div className={`w-4 h-4 rounded-full mr-2 ${isListening ? 'bg-red-500 animate-pulse' : 'bg-gray-300'}`}></div>
-        <span className="text-sm text-gray-600">
-          {isListening ? 'Dinleniyor...' : 'Dinleme beklemede'}
-        </span>
+        {isListening ? (
+          <div className="flex items-center space-x-2">
+            <div className="relative">
+              <MicIcon 
+                size={24} 
+                className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
+              />
+              {processingVoice && (
+                <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
+              )}
+            </div>
+            <span className="text-sm text-gray-600">
+              {processingVoice ? 'İşleniyor...' : 'Sizi dinliyorum...'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <MicOffIcon size={24} className="text-gray-400" />
+            <span className="text-sm text-gray-600">Dinleme beklemede</span>
+          </div>
+        )}
       </div>
       
       {transcript && (
         <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-          <p className="text-gray-700">{transcript}</p>
+          <p className="text-gray-700" role="status" aria-live="polite">{transcript}</p>
         </div>
       )}
       
       {error && (
-        <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200">
+        <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200" role="alert">
           <p className="text-red-700">{error}</p>
         </div>
       )}
@@ -210,11 +267,13 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           placeholder="Sesli komut girmek için buraya yazın"
           className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={!isListening}
+          aria-label="Sesli komut giriş alanı"
         />
         <button
           type="submit"
           className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors"
           disabled={!isListening}
+          aria-label="Komutu gönder"
         >
           Gönder
         </button>

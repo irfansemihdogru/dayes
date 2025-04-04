@@ -6,183 +6,123 @@ export const Webcam: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-  const [trackingStarted, setTrackingStarted] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const faceDetectionInterval = useRef<NodeJS.Timeout | null>(null);
   
-  // Load headtrackr.js directly from a more reliable CDN
-  useEffect(() => {
-    const loadScript = () => {
-      try {
-        // Remove any existing script to avoid conflicts
-        const existingScript = document.getElementById('headtrackr-script');
-        if (existingScript) {
-          document.body.removeChild(existingScript);
+  // Function to detect faces using the built-in browser API
+  const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
+    if (!video.videoWidth || !video.videoHeight) return;
+    
+    try {
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      
+      // Draw the current video frame to the canvas
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Simple face detection using color detection for skin tones
+      // This is a very basic approach and not as accurate as ML-based methods
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      // Look for pixel patterns that might indicate a face
+      // This is a simplistic algorithm that looks for skin tone colors
+      let facePixels = 0;
+      const totalPixels = data.length / 4;
+      
+      for (let i = 0; i < data.length; i += 16) { // Sample every 4th pixel for performance
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Simple skin tone detection
+        if (r > 60 && g > 40 && b > 20 && 
+            r > g && r > b && 
+            r - g > 15 && 
+            r - b > 15) {
+          facePixels++;
         }
-        
-        const script = document.createElement('script');
-        script.id = 'headtrackr-script';
-        script.src = 'https://unpkg.com/headtrackr@1.0.3/dist/headtrackr.js';
-        script.async = true;
-        
-        script.onload = () => {
-          console.log('Headtrackr script loaded successfully');
-          setScriptLoaded(true);
-        };
-        
-        script.onerror = (e) => {
-          console.error('Failed to load headtrackr script', e);
-          setErrorMessage('Headtrackr yüklenemedi. Yüz tanıma manuel olarak atlanacak.');
-          
-          // Fallback: simulate face detection after a timeout
-          setTimeout(() => {
-            handleFaceDetection(true);
-          }, 5000);
-        };
-        
-        document.body.appendChild(script);
-      } catch (error) {
-        console.error('Error during script loading:', error);
-        setErrorMessage('Script yükleme hatası');
       }
-    };
-    
-    loadScript();
-    
-    return () => {
-      const script = document.getElementById('headtrackr-script');
-      if (script) {
-        document.body.removeChild(script);
-      }
-    };
-  }, []);
-  
-  const handleFaceDetection = (detected: boolean) => {
-    setFaceDetected(detected);
-    // Dispatch a custom event that can be listened to elsewhere
-    const event = new CustomEvent('faceDetected', { 
-      detail: { detected } 
-    });
-    window.dispatchEvent(event);
-    
-    if (detected) {
-      console.log('Face detected!');
+      
+      // If more than 5% of pixels match our skin tone criteria, assume a face is present
+      const faceDetected = (facePixels / (totalPixels / 4)) > 0.05;
+      setFaceDetected(faceDetected);
+      
+      // Dispatch custom event for face detection
+      const event = new CustomEvent('faceDetected', { 
+        detail: { detected: faceDetected } 
+      });
+      window.dispatchEvent(event);
+      
+    } catch (error) {
+      console.error('Error during face detection:', error);
     }
   };
   
   // Initialize camera
   useEffect(() => {
-    if (!videoRef.current) return;
-    
-    const video = videoRef.current;
-    
-    navigator.mediaDevices.getUserMedia({ 
-      video: { 
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        facingMode: "user"
-      } 
-    })
-    .then((stream) => {
-      video.srcObject = stream;
-      video.play()
-        .then(() => {
-          console.log('Video playback started');
-          
-          // Configure canvas size to match video
-          if (canvasRef.current) {
-            const canvas = canvasRef.current;
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-          }
-        })
-        .catch(err => {
-          console.error("Error playing video:", err);
-          setErrorMessage('Video oynatma hatası');
+    const setupCamera = async () => {
+      if (!videoRef.current || !canvasRef.current) return;
+      
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user"
+          } 
         });
-    })
-    .catch(err => {
-      console.error("Error accessing the camera:", err);
-      setErrorMessage('Kamera erişimi sağlanamadı. Lütfen kamera izinlerini kontrol ediniz.');
-    });
+        
+        streamRef.current = stream;
+        video.srcObject = stream;
+        
+        await video.play();
+        console.log('Video playback started');
+        
+        // Configure canvas to match video dimensions
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Start face detection loop
+        faceDetectionInterval.current = setInterval(() => {
+          detectFaces(video, canvas);
+        }, 200); // Check for faces every 200ms
+        
+      } catch (err) {
+        console.error("Error accessing the camera:", err);
+        setErrorMessage('Kamera erişimi sağlanamadı. Lütfen kamera izinlerini kontrol ediniz.');
+        
+        // Fallback: simulate face detection after a timeout
+        setTimeout(() => {
+          handleManualDetection();
+        }, 5000);
+      }
+    };
+    
+    setupCamera();
     
     return () => {
-      if (video.srcObject) {
-        const tracks = (video.srcObject as MediaStream).getTracks();
-        tracks.forEach(track => track.stop());
+      // Clean up
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      if (faceDetectionInterval.current) {
+        clearInterval(faceDetectionInterval.current);
       }
     };
   }, []);
   
-  // Initialize headtracking once the script is loaded
-  useEffect(() => {
-    if (!scriptLoaded || trackingStarted || !videoRef.current || !canvasRef.current) return;
-    
-    try {
-      // Check if headtrackr is available globally
-      if (typeof window.headtrackr !== 'undefined') {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        
-        console.log('Starting headtracking');
-        
-        const htracker = new window.headtrackr.Tracker({
-          calcAngles: true,
-          ui: false,
-          headPosition: false,
-          debug: false,
-          detectionInterval: 100  // Check for face every 100ms
-        });
-        
-        setTrackingStarted(true);
-        
-        htracker.init(video, canvas);
-        htracker.start();
-        
-        // Listen for track events
-        document.addEventListener('facetrackingEvent', (event: any) => {
-          console.log('Face tracking event:', event);
-          if (event.detection === 'CS') {
-            handleFaceDetection(true);
-          }
-        });
-        
-        document.addEventListener('headtrackrStatusEvent', (event: any) => {
-          console.log('Headtrackr status event:', event.status);
-          if (event.status === 'found') {
-            handleFaceDetection(true);
-          } else if (event.status === 'lost' || event.status === 'redetecting') {
-            handleFaceDetection(false);
-          }
-        });
-        
-        return () => {
-          htracker.stop();
-          document.removeEventListener('facetrackingEvent', () => {});
-          document.removeEventListener('headtrackrStatusEvent', () => {});
-        };
-      } else {
-        console.error('Headtrackr not available after script load');
-        setErrorMessage('Headtrackr yüklenemedi. Yüz tanıma manuel olarak atlanacak.');
-        
-        // Fallback: simulate face detection after a timeout
-        setTimeout(() => {
-          handleFaceDetection(true);
-        }, 5000);
-      }
-    } catch (error) {
-      console.error('Error initializing headtracker:', error);
-      setErrorMessage('Yüz takibi başlatılamadı.');
-      
-      // Fallback: simulate face detection after a timeout
-      setTimeout(() => {
-        handleFaceDetection(true);
-      }, 5000);
-    }
-  }, [scriptLoaded, trackingStarted]);
-  
   // Provide a manual way to bypass face detection if needed
   const handleManualDetection = () => {
-    handleFaceDetection(true);
+    const event = new CustomEvent('faceDetected', { 
+      detail: { detected: true } 
+    });
+    window.dispatchEvent(event);
+    setFaceDetected(true);
   };
   
   return (
@@ -207,6 +147,7 @@ export const Webcam: React.FC = () => {
           <button 
             onClick={handleManualDetection}
             className="ml-2 bg-white text-red-500 px-2 py-1 rounded text-sm"
+            aria-label="Devam Et"
           >
             Devam Et
           </button>
@@ -225,10 +166,3 @@ export const Webcam: React.FC = () => {
     </div>
   );
 };
-
-// Add the headtrackr type definition to the global window object
-declare global {
-  interface Window {
-    headtrackr: any;
-  }
-}

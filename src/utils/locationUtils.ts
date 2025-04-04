@@ -1,39 +1,26 @@
 
-/**
- * Utility functions for generating random room locations
- */
-
-// Array of possible floors
+// Define location templates
 const floors = [1, 2, 3];
+const directions = ['sağda', 'solda', 'karşıda', 'koridor sonunda'];
+const roomNumbers = Array.from({ length: 30 }, (_, i) => i + 1);
 
-// Array of possible directions
-const directions = ['sağda', 'solda', 'koridorun sonunda', 'merdivenlerden sonra'];
-
-// Array of possible room number ranges
-const roomRanges = [
-  { min: 101, max: 120 },  // 1st floor
-  { min: 201, max: 220 },  // 2nd floor
-  { min: 301, max: 320 },  // 3rd floor
-];
-
-/**
- * Generates a random integer between min and max (inclusive)
- */
-const getRandomInt = (min: number, max: number): number => {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-};
-
-/**
- * Generates a random room location string
- */
-export const getRandomRoomLocation = (): string => {
-  const floorIndex = getRandomInt(0, floors.length - 1);
-  const floor = floors[floorIndex];
-  const direction = directions[getRandomInt(0, directions.length - 1)];
-  
-  // Get room number based on floor
-  const roomRange = roomRanges[floorIndex];
-  const roomNumber = getRandomInt(roomRange.min, roomRange.max);
+export function getRandomRoomLocation(): string {
+  const floor = floors[Math.floor(Math.random() * floors.length)];
+  const direction = directions[Math.floor(Math.random() * directions.length)];
+  const roomNumber = roomNumbers[Math.floor(Math.random() * roomNumbers.length)];
   
   return `Kat ${floor}, ${direction}, Oda ${roomNumber}`;
-};
+}
+
+export function getDirectionsDescription(location: string): string {
+  // Generate a more detailed description for voice guidance
+  const parts = location.split(',');
+  
+  if (parts.length < 3) return location;
+  
+  const floor = parts[0].trim();
+  const direction = parts[1].trim();
+  const room = parts[2].trim();
+  
+  return `${floor} numaralı kata çıkınız. ${direction} yerleştirilmiş ${room} numaralı odaya gidiniz.`;
+}
