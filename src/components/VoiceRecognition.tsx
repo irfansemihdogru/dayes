@@ -44,6 +44,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const [processingVoice, setProcessingVoice] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isRecognitionActiveRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
   
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
@@ -82,7 +84,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         console.error('Speech recognition error', event.error);
         
         if (event.error === 'aborted') {
-          setError('Ses tanıma iptal edildi. Lütfen tekrar deneyin.');
+          // Don't show error for aborted, just retry
+          console.log('Recognition aborted, will retry automatically');
         } else if (event.error === 'no-speech') {
           setError('Ses algılanamadı. Lütfen daha yüksek sesle konuşun.');
         } else if (event.error === 'network') {
@@ -95,11 +98,23 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         isRecognitionActiveRef.current = false;
         
         // Try to restart after a short delay
-        setTimeout(() => {
-          if (isListening) {
-            startRecognition();
-          }
-        }, 1000);
+        if (retryCountRef.current < maxRetries) {
+          retryCountRef.current++;
+          setTimeout(() => {
+            if (isListening) {
+              console.log(`Retry attempt ${retryCountRef.current} of ${maxRetries}`);
+              startRecognition();
+            }
+          }, 500); // Shorter delay for retries
+        } else {
+          console.log('Max retries reached, waiting longer before next attempt');
+          retryCountRef.current = 0;
+          setTimeout(() => {
+            if (isListening) {
+              startRecognition();
+            }
+          }, 2000); // Longer delay after max retries
+        }
       };
       
       recognition.onend = () => {
@@ -108,6 +123,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         
         // Only try to restart if we're still supposed to be listening
         if (isListening) {
+          console.log('Recognition ended but isListening is true, restarting');
           setTimeout(() => {
             startRecognition();
           }, 300);

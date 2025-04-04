@@ -75,11 +75,11 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected }) => {
       <CardContent className="p-6">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-blue-800 mb-4">Yüz Tanıma</h2>
-          <div className="relative w-full h-80 bg-gray-100 rounded-lg mb-4 overflow-hidden">
+          <div className="relative w-full h-96 bg-gray-100 rounded-lg mb-4 overflow-hidden">
             <Webcam />
             {detecting && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-48 h-48 border-4 border-blue-500 rounded-full animate-pulse opacity-70"></div>
+                <div className="w-64 h-64 border-4 border-blue-500 rounded-full animate-pulse opacity-70"></div>
               </div>
             )}
           </div>

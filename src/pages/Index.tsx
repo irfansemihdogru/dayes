@@ -293,29 +293,11 @@ const Index = () => {
           )}
           
           {appState === 'main-menu' && (
-            <>
-              <MainMenu onSelection={handleServiceSelection} />
-              {isListening && (
-                <VoiceRecognition 
-                  isListening={isListening} 
-                  onResult={handleVoiceResult}
-                  prompt={voicePrompt}
-                />
-              )}
-            </>
+            <MainMenu onSelection={handleServiceSelection} />
           )}
           
           {appState === 'grade-selection' && (
-            <>
-              <GradeSelection onSelection={handleGradeSelection} />
-              {isListening && (
-                <VoiceRecognition 
-                  isListening={isListening} 
-                  onResult={handleVoiceResult}
-                  prompt={voicePrompt}
-                />
-              )}
-            </>
+            <GradeSelection onSelection={handleGradeSelection} />
           )}
           
           {appState === 'attendance-form' && (
@@ -338,6 +320,17 @@ const Index = () => {
             />
           )}
         </div>
+        
+        {/* Show voice recognition UI in states that need it */}
+        {(appState === 'main-menu' || appState === 'grade-selection') && isListening && (
+          <div className="mt-4">
+            <VoiceRecognition 
+              isListening={isListening} 
+              onResult={handleVoiceResult}
+              prompt={voicePrompt}
+            />
+          </div>
+        )}
       </div>
       
       <div className="mt-4 text-center">

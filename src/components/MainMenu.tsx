@@ -1,8 +1,7 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import VoiceRecognition from './VoiceRecognition';
 
 interface MenuItem {
   id: string;
@@ -24,35 +23,13 @@ const menuItems: MenuItem[] = [
 ];
 
 const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
-  const [isListening, setIsListening] = useState(true);
-  
-  const handleVoiceResult = (text: string) => {
-    setIsListening(false);
-    
-    // Try to match the spoken text with a menu item
-    const lowerText = text.toLowerCase();
-    
-    for (const item of menuItems) {
-      if (lowerText.includes(item.name.toLowerCase()) || 
-          lowerText.includes(item.id.toLowerCase())) {
-        onSelection(item.id);
-        return;
-      }
-    }
-    
-    // If no match is found, restart listening
-    setTimeout(() => {
-      setIsListening(true);
-    }, 2000);
-  };
-  
   return (
     <Card className="w-full max-w-4xl bg-white/90 backdrop-blur-sm shadow-lg">
       <CardHeader className="bg-blue-600 text-white rounded-t-lg">
         <CardTitle className="text-2xl text-center">Hoşgeldiniz! Yapmak İstediğiniz İşlemi Kısaca Söyleyiniz</CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {menuItems.map((item) => (
             <Button
               key={item.id}
@@ -64,12 +41,6 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
             </Button>
           ))}
         </div>
-        
-        <VoiceRecognition 
-          isListening={isListening} 
-          onResult={handleVoiceResult}
-          prompt="Lütfen işleminizi söyleyin..."
-        />
       </CardContent>
     </Card>
   );
