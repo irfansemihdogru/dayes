@@ -6,6 +6,7 @@ export const Webcam: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [faceDetected, setFaceDetected] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const faceDetectionInterval = useRef<NodeJS.Timeout | null>(null);
   
@@ -79,26 +80,35 @@ export const Webcam: React.FC = () => {
         streamRef.current = stream;
         video.srcObject = stream;
         
-        await video.play();
-        console.log('Video playback started');
+        // Set camera as active
+        setCameraActive(true);
         
-        // Configure canvas to match video dimensions
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Emit camera status event
+        const event = new CustomEvent('cameraStatus', { 
+          detail: { active: true } 
+        });
+        window.dispatchEvent(event);
         
-        // Start face detection loop
-        faceDetectionInterval.current = setInterval(() => {
-          detectFaces(video, canvas);
-        }, 200); // Check for faces every 200ms
-        
+        video.onloadedmetadata = () => {
+          video.play().then(() => {
+            console.log('Video playback started');
+            
+            // Configure canvas to match video dimensions
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Start face detection loop
+            faceDetectionInterval.current = setInterval(() => {
+              detectFaces(video, canvas);
+            }, 200); // Check for faces every 200ms
+          }).catch(err => {
+            console.error("Error playing video:", err);
+            handleCameraError("Kamera başlatılamadı");
+          });
+        };
       } catch (err) {
         console.error("Error accessing the camera:", err);
-        setErrorMessage('Kamera erişimi sağlanamadı. Lütfen kamera izinlerini kontrol ediniz.');
-        
-        // Fallback: simulate face detection after a timeout
-        setTimeout(() => {
-          handleManualDetection();
-        }, 5000);
+        handleCameraError('Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol ediniz.');
       }
     };
     
@@ -113,8 +123,47 @@ export const Webcam: React.FC = () => {
       if (faceDetectionInterval.current) {
         clearInterval(faceDetectionInterval.current);
       }
+      
+      // Emit camera inactive event
+      const event = new CustomEvent('cameraStatus', { 
+        detail: { active: false } 
+      });
+      window.dispatchEvent(event);
     };
   }, []);
+  
+  const handleCameraError = (message: string) => {
+    setErrorMessage(message);
+    setCameraActive(false);
+    
+    // Emit camera status event
+    const event = new CustomEvent('cameraStatus', { 
+      detail: { active: false } 
+    });
+    window.dispatchEvent(event);
+  };
+  
+  // Check camera status periodically
+  useEffect(() => {
+    const checkCameraStatus = setInterval(() => {
+      if (streamRef.current) {
+        const tracks = streamRef.current.getVideoTracks();
+        const isActive = tracks.length > 0 && tracks[0].enabled && tracks[0].readyState === 'live';
+        
+        if (cameraActive !== isActive) {
+          setCameraActive(isActive);
+          
+          // Emit camera status event
+          const event = new CustomEvent('cameraStatus', { 
+            detail: { active: isActive } 
+          });
+          window.dispatchEvent(event);
+        }
+      }
+    }, 1000);
+    
+    return () => clearInterval(checkCameraStatus);
+  }, [cameraActive]);
   
   // Provide a manual way to bypass face detection if needed
   const handleManualDetection = () => {
@@ -155,10 +204,14 @@ export const Webcam: React.FC = () => {
       )}
       
       <div className="text-blue-900 text-opacity-70 text-lg absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-        {faceDetected ? "Yüz algılandı!" : "Yüzünüzü kameraya gösteriniz"}
+        {!cameraActive 
+          ? "Kamera erişimi bekleniyor..." 
+          : faceDetected 
+            ? "Yüz algılandı!" 
+            : "Yüzünüzü kameraya gösteriniz"}
       </div>
       
-      {faceDetected && (
+      {faceDetected && cameraActive && (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
           <div className="w-48 h-48 border-4 border-green-500 rounded-full animate-pulse opacity-70"></div>
         </div>

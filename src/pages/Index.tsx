@@ -23,6 +23,22 @@ interface StaffMapping {
   [key: string]: string;
 }
 
+// Room information mapping
+interface StaffRoomInfo {
+  name: string;
+  floor: number;
+  location: string;
+  roomNumber: number;
+}
+
+const staffInfo: Record<string, StaffRoomInfo> = {
+  'YENER HANCI': { name: 'YENER HANCI', floor: 2, location: 'sol', roomNumber: 24 },
+  'ERDEM ÜÇER': { name: 'ERDEM ÜÇER', floor: 2, location: 'sağ', roomNumber: 15 },
+  'FEHMİ OKŞAK': { name: 'FEHMİ OKŞAK', floor: 3, location: 'sol', roomNumber: 32 },
+  'ÖZLEM KOTANOĞLU': { name: 'ÖZLEM KOTANOĞLU', floor: 1, location: 'koridor sonunda', roomNumber: 8 },
+  'ASUMAN ÖZŞİMŞEKLER': { name: 'ASUMAN ÖZŞİMŞEKLER', floor: 2, location: 'merdiven karşısı', roomNumber: 22 },
+};
+
 const gradeToStaff: StaffMapping = {
   '9': 'ERDEM ÜÇER',
   '10': 'FEHMİ OKŞAK',
@@ -68,7 +84,7 @@ const Index = () => {
     // Cancel any previous speech
     window.speechSynthesis.cancel();
     
-    const welcomeText = "Okul Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
+    const welcomeText = "Yıldırım Mesleki ve Teknik Anadolu Lisesi Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
     const speech = new SpeechSynthesisUtterance(welcomeText);
     speech.lang = 'tr-TR';
     speech.rate = 0.9;
@@ -270,11 +286,20 @@ const Index = () => {
     }
   };
   
+  const getStaffRoomInfo = (staffName: string): StaffRoomInfo => {
+    return staffInfo[staffName] || { 
+      name: staffName, 
+      floor: 1, 
+      location: 'karşıda', 
+      roomNumber: 1
+    };
+  };
+  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
       <div className="w-full max-w-4xl mb-8">
         <div className="text-center mb-4 flex items-center justify-center">
-          <h1 className="text-4xl font-bold text-blue-800">Okul Veli Yönlendirme Sistemi</h1>
+          <h1 className="text-4xl font-bold text-blue-800">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
           <button
             onClick={toggleAudio}
             className="ml-3 p-2 bg-white rounded-full shadow hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -315,6 +340,7 @@ const Index = () => {
           {appState === 'staff-direction' && (
             <StaffDirectionResult 
               staffName={directedStaff}
+              staffRoomInfo={getStaffRoomInfo(directedStaff)}
               reason={getServiceDisplayName()}
               onTimeout={resetApp}
             />
@@ -322,7 +348,7 @@ const Index = () => {
         </div>
         
         {/* Show voice recognition UI in states that need it */}
-        {(appState === 'main-menu' || appState === 'grade-selection') && isListening && (
+        {(appState === 'main-menu' || appState === 'grade-selection') && (
           <div className="mt-4">
             <VoiceRecognition 
               isListening={isListening} 

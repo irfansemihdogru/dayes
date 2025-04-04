@@ -2,29 +2,32 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserRoundIcon, MapPinIcon, Volume2Icon, Volume1Icon, VolumeXIcon } from 'lucide-react';
-import { getRandomRoomLocation, getDirectionsDescription } from '@/utils/locationUtils';
+
+interface StaffRoomInfo {
+  name: string;
+  floor: number;
+  location: string;
+  roomNumber: number;
+}
 
 interface StaffDirectionResultProps {
   staffName: string;
+  staffRoomInfo: StaffRoomInfo;
   reason: string;
   onTimeout: () => void;
 }
 
 const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({ 
   staffName, 
+  staffRoomInfo,
   reason,
   onTimeout 
 }) => {
-  const [location, setLocation] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(30);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   useEffect(() => {
-    // Generate random location when component mounts
-    const generatedLocation = getRandomRoomLocation();
-    setLocation(generatedLocation);
-    
     // Set countdown timer
     const timer = setInterval(() => {
       setSecondsLeft(prev => {
@@ -42,10 +45,20 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
 
   useEffect(() => {
     // Initialize audio context for screen reader announcement
-    if (location && audioEnabled) {
-      speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription(location)}`);
+    if (staffRoomInfo && audioEnabled) {
+      speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
     }
-  }, [location, staffName, reason, audioEnabled]);
+  }, [staffName, reason, staffRoomInfo, audioEnabled]);
+
+  const getDirectionsDescription = (): string => {
+    const { floor, location, roomNumber } = staffRoomInfo;
+    return `${floor}. kat, ${location} tarafta, ${roomNumber} numaralı oda.`;
+  };
+
+  const getLocationDisplay = (): string => {
+    const { floor, location, roomNumber } = staffRoomInfo;
+    return `${floor}. Kat, ${location}, Oda ${roomNumber}`;
+  };
 
   const speakText = (text: string) => {
     // Use Web Speech API for text-to-speech
@@ -68,7 +81,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
       window.speechSynthesis.cancel(); // Stop speaking if turning off
     } else {
       // Re-speak the information when turning back on
-      speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription(location)}`);
+      speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
     }
     setAudioEnabled(!audioEnabled);
   };
@@ -105,9 +118,12 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
           <p className="text-xl font-medium text-blue-800">{reason}</p>
         </div>
         
-        <div className="p-4 bg-green-50 rounded-lg mb-6 flex items-center justify-center">
-          <MapPinIcon className="text-green-600 mr-2" size={24} />
-          <p className="text-xl font-medium text-green-800">{location}</p>
+        <div className="p-4 bg-green-50 rounded-lg mb-6">
+          <div className="flex items-center justify-center mb-2">
+            <MapPinIcon className="text-green-600 mr-2" size={24} />
+            <p className="text-xl font-medium text-green-800">{getLocationDisplay()}</p>
+          </div>
+          <p className="text-md text-green-700">{getDirectionsDescription()}</p>
         </div>
         
         <div className="mt-6 text-center text-sm text-gray-600">
@@ -115,7 +131,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         </div>
         
         <button 
-          onClick={() => speakText(getDirectionsDescription(location))}
+          onClick={() => speakText(getDirectionsDescription())}
           className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           aria-label="Yönlendirmeleri tekrar oku"
         >

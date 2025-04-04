@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Webcam } from './Webcam';
 import { Card, CardContent } from "@/components/ui/card";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface FaceRecognitionProps {
   onDetected: () => void;
@@ -11,12 +13,29 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected }) => {
   const [detecting, setDetecting] = useState(true);
   const detectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [detectedCount, setDetectedCount] = useState(0);
+  const [cameraActive, setCameraActive] = useState(false);
+  
+  // Listen for camera status from the Webcam component
+  useEffect(() => {
+    const handleCameraStatus = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.active !== undefined) {
+        setCameraActive(customEvent.detail.active);
+      }
+    };
+    
+    window.addEventListener('cameraStatus', handleCameraStatus);
+    
+    return () => {
+      window.removeEventListener('cameraStatus', handleCameraStatus);
+    };
+  }, []);
   
   // Listen for the faceDetected event from the Webcam component
   const handleFaceDetection = (detected: boolean) => {
     console.log('Face detection status:', detected);
     
-    if (!detecting) return;
+    if (!detecting || !cameraActive) return;
     
     if (detected) {
       // Increment detection count to make the detection more reliable
@@ -56,7 +75,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected }) => {
     // Set a fallback timeout in case face detection doesn't work
     detectionTimeoutRef.current = setTimeout(() => {
       console.log('Face detection timeout, forcing onDetected');
-      if (detecting) {
+      if (detecting && cameraActive) {
         setDetecting(false);
         onDetected();
       }
@@ -68,25 +87,35 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected }) => {
         clearTimeout(detectionTimeoutRef.current);
       }
     };
-  }, [detecting, onDetected]);
+  }, [detecting, onDetected, cameraActive]);
 
   return (
     <Card className="w-full max-w-4xl bg-white/90 backdrop-blur-sm shadow-lg">
       <CardContent className="p-6">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-blue-800 mb-4">Yüz Tanıma</h2>
-          <div className="relative w-full h-96 bg-gray-100 rounded-lg mb-4 overflow-hidden">
+          <div className="relative w-full h-[400px] bg-gray-100 rounded-lg mb-4 overflow-hidden">
             <Webcam />
-            {detecting && (
+            {detecting && cameraActive && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-64 h-64 border-4 border-blue-500 rounded-full animate-pulse opacity-70"></div>
               </div>
             )}
+            {!cameraActive && (
+              <Alert variant="destructive" className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/90 max-w-md">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol edin ve sayfayı yenileyin.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
           <p className="text-gray-600">
-            {detecting 
-              ? "Yüzünüz tanınıyor, lütfen kameraya bakınız..." 
-              : "Yüzünüz başarıyla tanındı, uygulama başlatılıyor..."}
+            {!cameraActive 
+              ? "Kamera izni gerekli. Lütfen izin veriniz." 
+              : detecting 
+                ? "Yüzünüz tanınıyor, lütfen kameraya bakınız..." 
+                : "Yüzünüz başarıyla tanındı, uygulama başlatılıyor..."}
           </p>
         </div>
       </CardContent>

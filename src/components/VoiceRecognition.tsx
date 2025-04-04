@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface VoiceRecognitionProps {
   isListening: boolean;
@@ -45,7 +46,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isRecognitionActiveRef = useRef(false);
   const retryCountRef = useRef(0);
-  const maxRetries = 3;
+  const maxRetries = 5;
+  const { toast } = useToast();
   
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
@@ -54,6 +56,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       if (!SpeechRecognition) {
         console.error('Speech Recognition API is not supported in this browser');
         setRecognitionSupported(false);
+        toast({
+          title: "Ses tanıma desteklenmiyor",
+          description: "Tarayıcınız ses tanıma özelliğini desteklemiyor. Lütfen metin girişini kullanın.",
+          variant: "destructive",
+        });
         return null;
       }
       
@@ -88,14 +95,26 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           console.log('Recognition aborted, will retry automatically');
         } else if (event.error === 'no-speech') {
           setError('Ses algılanamadı. Lütfen daha yüksek sesle konuşun.');
+          toast({
+            title: "Ses algılanamadı",
+            description: "Lütfen daha yüksek sesle konuşun veya mikrofonunuzu kontrol edin.",
+            variant: "default",
+          });
         } else if (event.error === 'network') {
           setError('Ağ hatası. Lütfen internet bağlantınızı kontrol edin.');
+          toast({
+            title: "Ağ hatası",
+            description: "Lütfen internet bağlantınızı kontrol edin.",
+            variant: "destructive",
+          });
         } else {
           setError(`Ses tanıma hatası: ${event.error}`);
+          toast({
+            title: "Ses tanıma hatası",
+            description: `${event.error}`,
+            variant: "destructive",
+          });
         }
-        
-        // Don't try to restart after error, just clear the active state
-        isRecognitionActiveRef.current = false;
         
         // Try to restart after a short delay
         if (retryCountRef.current < maxRetries) {
@@ -105,7 +124,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
               console.log(`Retry attempt ${retryCountRef.current} of ${maxRetries}`);
               startRecognition();
             }
-          }, 500); // Shorter delay for retries
+          }, 300); // Shorter delay for retries
         } else {
           console.log('Max retries reached, waiting longer before next attempt');
           retryCountRef.current = 0;
@@ -113,7 +132,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
             if (isListening) {
               startRecognition();
             }
-          }, 2000); // Longer delay after max retries
+          }, 1000); // Longer delay after max retries
         }
       };
       
@@ -126,7 +145,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           console.log('Recognition ended but isListening is true, restarting');
           setTimeout(() => {
             startRecognition();
-          }, 300);
+          }, 100);
         } else if (onListeningEnd) {
           onListeningEnd();
         }
@@ -136,9 +155,14 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     } catch (err) {
       console.error('Failed to initialize speech recognition:', err);
       setRecognitionSupported(false);
+      toast({
+        title: "Ses tanıma başlatılamadı",
+        description: "Tarayıcınız ses tanıma özelliğini desteklemiyor olabilir.",
+        variant: "destructive",
+      });
       return null;
     }
-  }, [isListening, onListeningEnd, onResult]);
+  }, [isListening, onListeningEnd, onResult, toast]);
   
   const startRecognition = useCallback(() => {
     // Don't start if we're already active
@@ -177,7 +201,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         if (isListening) {
           startRecognition();
         }
-      }, 1500);
+      }, 500);
     }
   }, [initRecognition, isListening]);
   
@@ -222,6 +246,28 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       setManualInput('');
     }
   };
+
+  // Check microphone access
+  useEffect(() => {
+    const checkMicrophoneAccess = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // We got microphone access
+        stream.getTracks().forEach(track => track.stop()); // Release the microphone
+        console.log('Microphone access granted');
+      } catch (err) {
+        console.error('Microphone access denied:', err);
+        toast({
+          title: "Mikrofon erişimi reddedildi",
+          description: "Ses tanıma için lütfen mikrofon erişimine izin verin.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    };
+    
+    checkMicrophoneAccess();
+  }, [toast]);
   
   return (
     <div className="mt-4">
@@ -282,13 +328,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           onChange={handleManualInputChange}
           placeholder="Sesli komut girmek için buraya yazın"
           className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          disabled={!isListening}
           aria-label="Sesli komut giriş alanı"
         />
         <button
           type="submit"
           className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors"
-          disabled={!isListening}
           aria-label="Komutu gönder"
         >
           Gönder
