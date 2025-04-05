@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserRoundIcon, MapPinIcon, Volume2Icon, Volume1Icon, VolumeXIcon } from 'lucide-react';
+import { UserRoundIcon, MapPinIcon, Volume2Icon, VolumeXIcon, Clock } from 'lucide-react';
 
 interface StaffRoomInfo {
   name: string;
@@ -112,13 +112,14 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   };
   
   return (
-    <Card className="w-full max-w-3xl bg-white/90 backdrop-blur-sm shadow-lg">
-      <CardHeader className="bg-blue-600 text-white rounded-t-lg">
-        <CardTitle className="text-2xl text-center relative">
+    <Card className="w-full max-w-3xl bg-white/90 backdrop-blur-sm shadow-lg border-2 border-blue-200 overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-t-lg py-6">
+        <CardTitle className="text-3xl text-center relative flex items-center justify-center">
+          <MapPinIcon size={28} className="mr-2 text-yellow-300" />
           Yönlendirme
           <button 
             onClick={toggleAudio}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 focus:outline-none"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
             aria-label={audioEnabled ? "Sesli okumayı kapat" : "Sesli okumayı aç"}
           >
             {audioEnabled ? 
@@ -129,39 +130,43 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6 text-center">
-        <div className="mb-6">
-          <div className="w-24 h-24 rounded-full bg-blue-100 mx-auto flex items-center justify-center">
-            <UserRoundIcon size={48} className="text-blue-600" />
+        <div className="mb-6 relative">
+          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 mx-auto flex items-center justify-center shadow-inner">
+            <UserRoundIcon size={56} className="text-blue-600" />
+          </div>
+          <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+            Personel
           </div>
         </div>
         
-        <h2 className="text-3xl font-bold text-blue-800 mb-2">{staffName}</h2>
+        <h2 className="text-3xl font-bold text-blue-800 mb-2 mt-4">{staffName}</h2>
         <p className="text-lg text-gray-600 mb-6">Personeline yönlendiriliyorsunuz</p>
         
-        <div className="p-4 bg-blue-50 rounded-lg mb-4">
-          <p className="text-sm text-gray-600 mb-1">İşlem</p>
+        <div className="p-5 bg-blue-50 rounded-lg mb-5 shadow-sm border border-blue-100">
+          <p className="text-sm text-gray-600 mb-1 font-medium">İşlem</p>
           <p className="text-xl font-medium text-blue-800">{reason}</p>
         </div>
         
-        <div className="p-4 bg-green-50 rounded-lg mb-6">
-          <div className="flex items-center justify-center mb-2">
+        <div className="p-5 bg-green-50 rounded-lg mb-6 shadow-sm border border-green-100">
+          <div className="flex items-center justify-center mb-3">
             <MapPinIcon className="text-green-600 mr-2" size={24} />
             <p className="text-xl font-medium text-green-800">{getLocationDisplay()}</p>
           </div>
-          <p className="text-md text-green-700">{getDetailedDirections()}</p>
+          <p className="text-md text-green-700 bg-white/70 p-3 rounded-md border border-green-200">{getDetailedDirections()}</p>
         </div>
         
-        <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Bu ekran {secondsLeft} saniye sonra otomatik olarak kapanacaktır.</p>
+        <div className="flex items-center justify-center space-x-2 mt-6 text-center text-sm bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+          <Clock size={18} className="text-amber-600" />
+          <p className="text-amber-700 font-medium">Bu ekran <span className="font-bold text-amber-800">{secondsLeft}</span> saniye sonra otomatik olarak kapanacaktır.</p>
         </div>
         
         <button 
           onClick={() => speakText(getDetailedDirections())}
-          className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="mt-6 inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md transition-all duration-200 transform hover:scale-105"
           aria-label="Yönlendirmeleri tekrar oku"
           disabled={isSpeakingRef.current}
         >
-          <Volume1Icon size={18} className="mr-2" />
+          <Volume2Icon size={20} className="mr-2" />
           Yönlendirmeleri Sesli Dinle
         </button>
       </CardContent>

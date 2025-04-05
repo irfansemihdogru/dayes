@@ -49,6 +49,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const maxRetries = 5;
   const { toast } = useToast();
   
+  // Helper function to check if speech synthesis is speaking
+  const isSpeaking = useCallback(() => {
+    return window.speechSynthesis.speaking;
+  }, []);
+  
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
     try {
@@ -120,7 +125,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         if (retryCountRef.current < maxRetries) {
           retryCountRef.current++;
           setTimeout(() => {
-            if (isListening) {
+            if (isListening && !isSpeaking()) {
               console.log(`Retry attempt ${retryCountRef.current} of ${maxRetries}`);
               startRecognition();
             }
@@ -129,7 +134,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           console.log('Max retries reached, waiting longer before next attempt');
           retryCountRef.current = 0;
           setTimeout(() => {
-            if (isListening) {
+            if (isListening && !isSpeaking()) {
               startRecognition();
             }
           }, 1000); // Longer delay after max retries
@@ -140,8 +145,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         console.log('Speech recognition session ended');
         isRecognitionActiveRef.current = false;
         
-        // Only try to restart if we're still supposed to be listening
-        if (isListening) {
+        // Only try to restart if we're still supposed to be listening and not speaking
+        if (isListening && !isSpeaking()) {
           console.log('Recognition ended but isListening is true, restarting');
           setTimeout(() => {
             startRecognition();
@@ -162,12 +167,12 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       });
       return null;
     }
-  }, [isListening, onListeningEnd, onResult, toast]);
+  }, [isListening, onListeningEnd, onResult, toast, isSpeaking]);
   
   const startRecognition = useCallback(() => {
-    // Don't start if we're already active
-    if (isRecognitionActiveRef.current) {
-      console.log('Recognition already active, not starting again');
+    // Don't start if we're already active or if speech synthesis is speaking
+    if (isRecognitionActiveRef.current || isSpeaking()) {
+      console.log('Recognition already active or system is speaking, not starting recognition');
       return;
     }
     
@@ -196,14 +201,14 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       // If we got an error, reset the recognition instance to try again next time
       recognitionRef.current = null;
       
-      // Try to restart after a short delay
+      // Try to restart after a short delay if not speaking
       setTimeout(() => {
-        if (isListening) {
+        if (isListening && !isSpeaking()) {
           startRecognition();
         }
       }, 500);
     }
-  }, [initRecognition, isListening]);
+  }, [initRecognition, isListening, isSpeaking]);
   
   const stopRecognition = useCallback(() => {
     if (!isRecognitionActiveRef.current || !recognitionRef.current) {
@@ -219,9 +224,27 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }
   }, []);
   
+  // Check if system is speaking before starting recognition
+  useEffect(() => {
+    const checkSpeakingInterval = setInterval(() => {
+      // If system is speaking, ensure recognition is stopped
+      if (isSpeaking() && isRecognitionActiveRef.current) {
+        console.log("System is speaking, stopping recognition");
+        stopRecognition();
+      } 
+      // If system is not speaking and we should be listening, start recognition
+      else if (!isSpeaking() && isListening && !isRecognitionActiveRef.current) {
+        console.log("System not speaking, can start recognition");
+        startRecognition();
+      }
+    }, 300);
+    
+    return () => clearInterval(checkSpeakingInterval);
+  }, [isListening, isSpeaking, startRecognition, stopRecognition]);
+  
   // Manage recognition based on isListening prop
   useEffect(() => {
-    if (isListening) {
+    if (isListening && !isSpeaking()) {
       startRecognition();
     } else {
       stopRecognition();
@@ -231,7 +254,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     return () => {
       stopRecognition();
     };
-  }, [isListening, startRecognition, stopRecognition]);
+  }, [isListening, startRecognition, stopRecognition, isSpeaking]);
   
   // For fallback if speech recognition is not supported
   const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -297,13 +320,15 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
               )}
             </div>
             <span className="text-sm text-gray-600">
-              {processingVoice ? 'İşleniyor...' : 'Sizi dinliyorum...'}
+              {processingVoice ? 'İşleniyor...' : isSpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
             </span>
           </div>
         ) : (
           <div className="flex items-center space-x-2">
             <MicOffIcon size={24} className="text-gray-400" />
-            <span className="text-sm text-gray-600">Dinleme beklemede</span>
+            <span className="text-sm text-gray-600">
+              {isSpeaking() ? 'Sistem konuşuyor...' : 'Dinleme beklemede'}
+            </span>
           </div>
         )}
       </div>
