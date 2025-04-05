@@ -86,7 +86,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   
   // When component mounts, read instructions
   useEffect(() => {
-    const initialMessage = "Lütfen öğrencinin adını ve soyadını söyleyin. Herhangi bir giriş kabul edilecektir.";
+    const initialMessage = "Lütfen öğrencinin adını ve soyadını söyleyin.";
     speakText(initialMessage);
   }, []);
   
@@ -138,13 +138,12 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         }, 2500);
       }, 500);
     } else {
-      // If no grade is detected, default to grade 9 and continue
-      setGrade(9);
+      // If no grade is detected, ask again with a more specific prompt
       setTimeout(() => {
-        speakText(`${name} isimli öğrenci için sınıf algılanamadı. 9. sınıf varsayılan olarak seçildi.`);
+        speakText("Sınıf anlaşılamadı. Lütfen 9, 10, 11 veya 12 olarak tekrar söyleyiniz.");
         setTimeout(() => {
-          onSubmit(name, 9);
-        }, 3500);
+          setIsListening(true);
+        }, 300);
       }, 500);
     }
   };
@@ -154,6 +153,19 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     if (name && grade) {
       onSubmit(name, grade);
     }
+  };
+
+  const handleGradeButtonClick = (selectedGrade: number) => {
+    setGrade(selectedGrade);
+    setIsListening(false); // Stop listening when grade is selected
+    
+    // Submit the form after both name and grade are collected
+    setTimeout(() => {
+      speakText(`${name} isimli ${selectedGrade}. sınıf öğrencisinin devamsızlık bilgileri getiriliyor.`);
+      setTimeout(() => {
+        onSubmit(name, selectedGrade);
+      }, 2500);
+    }, 300);
   };
   
   return (
@@ -188,12 +200,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
                     type="button"
                     variant={grade === g ? "default" : "outline"}
                     className={`h-14 text-xl ${grade === g ? 'bg-blue-600' : 'border-blue-300'}`}
-                    onClick={() => {
-                      setGrade(g);
-                      setTimeout(() => {
-                        onSubmit(name, g);
-                      }, 500);
-                    }}
+                    onClick={() => handleGradeButtonClick(g)}
                     aria-pressed={grade === g}
                   >
                     {g}. Sınıf
@@ -236,7 +243,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
             <button
               type="button"
               onClick={() => speakText(stage === 'name' 
-                ? "Lütfen öğrencinin adını ve soyadını söyleyin. Herhangi bir giriş kabul edilecektir." 
+                ? "Lütfen öğrencinin adını ve soyadını söyleyin." 
                 : "Lütfen öğrencinin sınıfını söyleyin. 9, 10, 11 veya 12 olarak belirtiniz."
               )}
               className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200"
