@@ -25,9 +25,10 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
 }) => {
   const [secondsLeft, setSecondsLeft] = useState(30);
   const [audioEnabled, setAudioEnabled] = useState(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const isSpeakingRef = useRef(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const isSpeakingRef = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     // Set countdown timer
@@ -42,10 +43,18 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
       });
     }, 1000);
     
+    countdownRef.current = timer;
+    
     return () => {
       clearInterval(timer);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
       // Make sure to stop speaking when component unmounts
-      window.speechSynthesis.cancel();
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
     }
   }, [onTimeout]);
 
@@ -94,7 +103,11 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
     };
     
     // Fallback in case the speech events don't fire
-    setTimeout(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    timeoutRef.current = setTimeout(() => {
       if (isSpeakingRef.current) {
         isSpeakingRef.current = false;
         setIsSpeaking(false);

@@ -67,6 +67,12 @@ const Index = () => {
   const [welcomeMessagePlaying, setWelcomeMessagePlaying] = useState(false);
   const { toast } = useToast();
   const appInitialized = useRef(false);
+  const isSpeakingRef = useRef(false);
+  
+  // Helper function to check if speech synthesis is speaking
+  const isSpeaking = () => {
+    return window.speechSynthesis && window.speechSynthesis.speaking;
+  };
   
   // Welcome message when app loads
   useEffect(() => {
@@ -98,23 +104,29 @@ const Index = () => {
     speech.pitch = 1;
     speech.volume = 1;
     
+    // Set speaking state
+    isSpeakingRef.current = true;
+    
     // When speech ends, mark welcome message as complete
     speech.onend = () => {
       console.log('Welcome message finished playing');
       setWelcomeMessagePlaying(false);
+      isSpeakingRef.current = false;
     };
     
     // Fallback in case onend doesn't trigger
     speech.onerror = () => {
       console.log('Welcome message error or interrupted');
       setWelcomeMessagePlaying(false);
+      isSpeakingRef.current = false;
     };
     
     // Estimate speech duration for fallback timer
     const estimatedDuration = welcomeText.length * 50; // ~50ms per character
     setTimeout(() => {
       setWelcomeMessagePlaying(false);
-    }, estimatedDuration);
+      isSpeakingRef.current = false;
+    }, estimatedDuration + 1000);
     
     window.speechSynthesis.speak(speech);
   };
@@ -124,6 +136,7 @@ const Index = () => {
     
     // Disable microphone while speaking
     setIsListening(false);
+    isSpeakingRef.current = true;
     
     // Cancel any previous speech
     window.speechSynthesis.cancel();
@@ -136,18 +149,27 @@ const Index = () => {
     
     // Re-enable microphone when speech ends
     speech.onend = () => {
+      isSpeakingRef.current = false;
       if (appState === 'main-menu' || appState === 'grade-selection') {
-        setIsListening(true);
+        setTimeout(() => setIsListening(true), 300);
+      }
+    };
+    
+    speech.onerror = () => {
+      isSpeakingRef.current = false;
+      if (appState === 'main-menu' || appState === 'grade-selection') {
+        setTimeout(() => setIsListening(true), 300);
       }
     };
     
     // Fallback in case onend doesn't trigger
     const estimatedDuration = text.length * 50; // ~50ms per character
     setTimeout(() => {
+      isSpeakingRef.current = false;
       if (appState === 'main-menu' || appState === 'grade-selection') {
         setIsListening(true);
       }
-    }, estimatedDuration + 500); // Add a small buffer
+    }, estimatedDuration + 1000); // Add a small buffer
     
     window.speechSynthesis.speak(speech);
   };
@@ -157,7 +179,12 @@ const Index = () => {
     if (appState === 'face-recognition') {
       setTimeout(() => {
         setAppState('main-menu');
-        setIsListening(true);
+        
+        // Only start listening if not currently speaking
+        if (!isSpeaking()) {
+          setIsListening(true);
+        }
+        
         const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
         setVoicePrompt(prompt);
         speakText(prompt);
@@ -178,54 +205,60 @@ const Index = () => {
   
   // Set appropriate voice prompts based on app state
   useEffect(() => {
-    switch (appState) {
-      case 'face-recognition':
-        setVoicePrompt('');
-        setIsListening(false);
-        break;
-      case 'main-menu': {
-        const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
-        setVoicePrompt(prompt);
-        // Only start listening if not speaking
-        if (!window.speechSynthesis.speaking) {
-          setIsListening(true);
+    // Don't update voice prompts during transitions
+    const transitionDelay = setTimeout(() => {
+      switch (appState) {
+        case 'face-recognition':
+          setVoicePrompt('');
+          setIsListening(false);
+          break;
+        case 'main-menu': {
+          const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
+          setVoicePrompt(prompt);
+          // Only start listening if not speaking
+          if (!isSpeaking()) {
+            setTimeout(() => setIsListening(true), 300);
+          }
+          if (audioEnabled) speakText(prompt);
+          break;
         }
-        if (audioEnabled) speakText(prompt);
-        break;
-      }
-      case 'grade-selection': {
-        const prompt = 'Öğrenciniz kaçıncı sınıf?';
-        setVoicePrompt(prompt);
-        // Only start listening if not speaking
-        if (!window.speechSynthesis.speaking) {
-          setIsListening(true);
+        case 'grade-selection': {
+          const prompt = 'Öğrenciniz kaçıncı sınıf?';
+          setVoicePrompt(prompt);
+          // Only start listening if not speaking
+          if (!isSpeaking()) {
+            setTimeout(() => setIsListening(true), 300);
+          }
+          if (audioEnabled) speakText(prompt);
+          break;
         }
-        if (audioEnabled) speakText(prompt);
-        break;
+        case 'attendance-form':
+          // Voice recognition handled in the form
+          setIsListening(false);
+          break;
+        case 'attendance-result':
+        case 'staff-direction':
+          setIsListening(false);
+          break;
       }
-      case 'attendance-form':
-        // Voice recognition handled in the form
-        setIsListening(false);
-        break;
-      case 'attendance-result':
-      case 'staff-direction':
-        setIsListening(false);
-        break;
-    }
+    }, 300); // Small delay to allow for transitions
+    
+    return () => clearTimeout(transitionDelay);
   }, [appState, audioEnabled]);
   
   const resetApp = () => {
+    // Stop any ongoing speech
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      isSpeakingRef.current = false;
+    }
+    
     setAppState('face-recognition');
     setSelectedService('');
     setSelectedGrade(null);
     setStudentName('');
     setDirectedStaff('');
     setIsListening(false);
-    
-    // Stop any ongoing speech
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
     
     // Speak reset message
     if (audioEnabled) {
@@ -335,18 +368,19 @@ const Index = () => {
   };
   
   const toggleAudio = () => {
-    setAudioEnabled(!audioEnabled);
-    
     // Stop any ongoing speech when turning off audio
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+      isSpeakingRef.current = false;
     }
+    
+    setAudioEnabled(!audioEnabled);
     
     // Notify user about audio state change
     if (!audioEnabled) { // Turning on
       setTimeout(() => {
         speakText('Sesli yönlendirme etkinleştirildi.');
-      }, 100);
+      }, 300);
     }
   };
   
@@ -434,6 +468,21 @@ const Index = () => {
           Bu sistem görme ve işitme engelli kullanıcılar için erişilebilirlik desteklerine sahiptir
         </p>
       </div>
+      
+      {/* Konuşma/Dinleme Durumu Göstergesi */}
+      {isSpeakingRef.current && (
+        <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center">
+          <Volume2Icon size={16} className="mr-2" />
+          <span>Sistem konuşuyor...</span>
+        </div>
+      )}
+      
+      {isListening && !isSpeakingRef.current && (
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center">
+          <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
+          <span>Dinleniyor...</span>
+        </div>
+      )}
     </div>
   );
 };

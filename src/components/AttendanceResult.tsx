@@ -46,9 +46,10 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
   const [hasReadInfo, setHasReadInfo] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(30); // 30-second countdown
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const isSpeakingRef = useRef(false);
   const speakTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   
   // Initialize countdown timer
   useEffect(() => {
@@ -94,11 +95,12 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
   const speakAttendanceInfo = () => {
     if (!('speechSynthesis' in window)) return;
     
-    // Indicate speaking has started (to disable mic in VoiceRecognition)
-    setIsSpeaking(true);
-    
     // Cancel any previous speech
     window.speechSynthesis.cancel();
+    
+    // Indicate speaking has started
+    isSpeakingRef.current = true;
+    setIsSpeaking(true);
     
     // Prepare text to speak
     const textToSpeak = `${studentName}, ${grade}. sınıf öğrencisinin devamsızlık bilgileri: Toplam ${totalExcused} gün özürlü, ${totalUnexcused} gün özürsüz devamsızlık yapmıştır.`;
@@ -110,6 +112,7 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
     speech.volume = 1;
     
     speech.onend = () => {
+      isSpeakingRef.current = false;
       setIsSpeaking(false);
       setHasReadInfo(true);
       // Return to main screen after reading is complete
@@ -118,9 +121,20 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
       }, 3000); // Wait 3 seconds after speech ends before returning
     };
     
+    speech.onerror = () => {
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
+      setHasReadInfo(true);
+    };
+    
     // Estimate speech duration for fallback timer (if onend doesn't trigger)
     const estimatedDuration = textToSpeak.length * 70; // ~70ms per character in Turkish
+    if (speakTimeoutRef.current) {
+      clearTimeout(speakTimeoutRef.current);
+    }
+    
     speakTimeoutRef.current = setTimeout(() => {
+      isSpeakingRef.current = false;
       setIsSpeaking(false);
       setHasReadInfo(true);
       onTimeout();
@@ -133,11 +147,13 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
   useEffect(() => {
     if (attendanceData.length > 0 && !hasReadInfo) {
       // Small delay to ensure the component is rendered before speaking
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         speakAttendanceInfo();
       }, 500);
+      
+      return () => clearTimeout(timer);
     }
-  }, [attendanceData]);
+  }, [attendanceData, hasReadInfo]);
   
   return (
     <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">

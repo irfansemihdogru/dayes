@@ -14,16 +14,18 @@ interface AttendanceFormProps {
 const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   const [name, setName] = useState('');
   const [grade, setGrade] = useState<number | null>(null);
-  const [isListening, setIsListening] = useState(false); // Start with microphone off
+  const [isListening, setIsListening] = useState(false);
   const [stage, setStage] = useState<'name' | 'grade'>('name');
   const [isReading, setIsReading] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSpeakingRef = useRef(false);
   
   // Helper function to speak text
   const speakText = (text: string) => {
     if (!('speechSynthesis' in window)) return;
     
     // Disable microphone while speaking
+    isSpeakingRef.current = true;
     setIsReading(true);
     setIsListening(false);
     
@@ -37,6 +39,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     speech.volume = 1;
     
     speech.onend = () => {
+      isSpeakingRef.current = false;
       setIsReading(false);
       // Only enable listening after speech ends
       setTimeout(() => {
@@ -44,9 +47,22 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       }, 300); // Short delay to ensure speech is fully finished
     };
     
+    speech.onerror = () => {
+      isSpeakingRef.current = false;
+      setIsReading(false);
+      setTimeout(() => {
+        setIsListening(true);
+      }, 300);
+    };
+    
     // Fallback in case onend doesn't trigger
     const estimatedDuration = text.length * 70; // ~70ms per character in Turkish
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
     timeoutRef.current = setTimeout(() => {
+      isSpeakingRef.current = false;
       setIsReading(false);
       setIsListening(true);
     }, estimatedDuration + 1000); // Longer buffer to ensure speech is completed
@@ -163,9 +179,9 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
           </div>
           
           {stage === 'grade' && (
-            <div>
+            <div className="flex flex-col items-center">
               <Label htmlFor="grade" className="text-lg mb-2 block">Öğrenci Sınıfı</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1 w-full">
                 {[9, 10, 11, 12].map((g) => (
                   <Button
                     key={g}
@@ -225,6 +241,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
               )}
               className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200"
               aria-label="Talimatları tekrar dinle"
+              disabled={isSpeakingRef.current}
             >
               <Volume2Icon size={18} />
               Talimatları Tekrar Dinle

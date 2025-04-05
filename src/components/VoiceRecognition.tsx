@@ -51,7 +51,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   
   // Helper function to check if speech synthesis is speaking
   const isSpeaking = useCallback(() => {
-    return window.speechSynthesis.speaking;
+    return window.speechSynthesis && window.speechSynthesis.speaking;
   }, []);
   
   // Initialize speech recognition
@@ -150,7 +150,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           console.log('Recognition ended but isListening is true, restarting');
           setTimeout(() => {
             startRecognition();
-          }, 100);
+          }, 300);
         } else if (onListeningEnd) {
           onListeningEnd();
         }
@@ -298,7 +298,21 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         <div className="flex items-center mb-2">
           <p className="text-lg text-blue-800">{prompt}</p>
           <button 
-            onClick={() => prompt && window.speechSynthesis.speak(new SpeechSynthesisUtterance(prompt))}
+            onClick={() => {
+              if (prompt && 'speechSynthesis' in window) {
+                // Stop any active recognition
+                stopRecognition();
+                const utterance = new SpeechSynthesisUtterance(prompt);
+                utterance.lang = 'tr-TR';
+                utterance.onend = () => {
+                  // Re-enable recognition when prompt reading ends
+                  if (isListening && !isSpeaking()) {
+                    setTimeout(() => startRecognition(), 300);
+                  }
+                };
+                window.speechSynthesis.speak(utterance);
+              }
+            }}
             className="ml-2 p-1 text-blue-600 hover:text-blue-800 focus:outline-none"
             aria-label="Metni sesli dinle"
           >
