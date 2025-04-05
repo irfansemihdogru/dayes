@@ -14,7 +14,7 @@ interface AttendanceFormProps {
 const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   const [name, setName] = useState('');
   const [grade, setGrade] = useState<number | null>(null);
-  const [isListening, setIsListening] = useState(true);
+  const [isListening, setIsListening] = useState(false); // Start with microphone off
   const [stage, setStage] = useState<'name' | 'grade'>('name');
   const [isReading, setIsReading] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -23,6 +23,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   const speakText = (text: string) => {
     if (!('speechSynthesis' in window)) return;
     
+    // Disable microphone while speaking
     setIsReading(true);
     setIsListening(false);
     
@@ -37,7 +38,10 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     
     speech.onend = () => {
       setIsReading(false);
-      setIsListening(true);
+      // Only enable listening after speech ends
+      setTimeout(() => {
+        setIsListening(true);
+      }, 300); // Short delay to ensure speech is fully finished
     };
     
     // Fallback in case onend doesn't trigger
@@ -45,7 +49,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     timeoutRef.current = setTimeout(() => {
       setIsReading(false);
       setIsListening(true);
-    }, estimatedDuration + 500);
+    }, estimatedDuration + 1000); // Longer buffer to ensure speech is completed
     
     window.speechSynthesis.speak(speech);
   };
@@ -71,27 +75,26 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   }, []);
   
   const handleNameVoiceResult = (text: string) => {
-    setIsListening(false);
-    
-    // Accept any input for name, even single letters
+    // Accept any input for name, no matter how short
     if (text.trim()) {
       setName(text);
+      setIsListening(false); // Immediately stop listening
       
       // Move to grade selection after a short delay
       setTimeout(() => {
         setStage('grade');
         speakText("Lütfen öğrencinin sınıfını söyleyin. 9, 10, 11 veya 12 olarak belirtiniz.");
-      }, 1000);
+      }, 500);
     } else {
       // If somehow we got empty input, restart listening
       setTimeout(() => {
         setIsListening(true);
-      }, 1000);
+      }, 500);
     }
   };
   
   const handleGradeVoiceResult = (text: string) => {
-    setIsListening(false);
+    setIsListening(false); // Immediately stop listening
     
     // Try to extract the grade from the spoken text
     const lowerText = text.toLowerCase();
@@ -117,7 +120,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         setTimeout(() => {
           onSubmit(name, detectedGrade);
         }, 2500);
-      }, 1000);
+      }, 500);
     } else {
       // If no grade is detected, default to grade 9 and continue
       setGrade(9);
@@ -126,7 +129,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         setTimeout(() => {
           onSubmit(name, 9);
         }, 3500);
-      }, 1000);
+      }, 500);
     }
   };
   
@@ -198,13 +201,19 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         <div className="mt-8 flex flex-col items-center">
           <div className={`${isReading ? 'bg-blue-50 border border-blue-200' : ''} rounded-lg p-3 w-full`}>
             <VoiceRecognition 
-              isListening={isListening && !isReading} 
+              isListening={isListening} 
               onResult={stage === 'name' ? handleNameVoiceResult : handleGradeVoiceResult}
+              onListeningEnd={() => console.log("Listening ended")}
               prompt={stage === 'name' 
                 ? "Lütfen öğrencinin adını ve soyadını söyleyin..." 
                 : "Lütfen öğrencinin sınıfını söyleyin..."
               }
             />
+            {isReading && (
+              <div className="mt-2 text-center p-2 bg-blue-100 text-blue-800 rounded-lg animate-pulse">
+                <p>Sistem konuşuyor, lütfen bekleyiniz...</p>
+              </div>
+            )}
           </div>
           
           <div className="mt-4 text-center">

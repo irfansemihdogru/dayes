@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Volume2Icon } from 'lucide-react';
+import { Volume2Icon, Clock } from 'lucide-react';
 
 interface AttendanceResultProps {
   studentName: string;
@@ -45,14 +45,29 @@ const generateMockAttendanceData = (count: number): AttendanceRecord[] => {
 const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade, onTimeout }) => {
   const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
   const [hasReadInfo, setHasReadInfo] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(30); // 30-second countdown
   const speakTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
+  // Initialize countdown timer
   useEffect(() => {
-    // Generate mock data
-    setAttendanceData(generateMockAttendanceData(8));
+    // Set countdown timer for 30 seconds
+    const timer = setInterval(() => {
+      setSecondsLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          onTimeout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
     
-    // No timeout here - we'll return after speaking or manual interaction
+    countdownRef.current = timer;
+    
     return () => {
+      clearInterval(timer);
       if (speakTimeoutRef.current) {
         clearTimeout(speakTimeoutRef.current);
       }
@@ -64,6 +79,11 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
     };
   }, [onTimeout]);
   
+  useEffect(() => {
+    // Generate mock data
+    setAttendanceData(generateMockAttendanceData(8));
+  }, []);
+  
   // Calculate totals
   const totalExcused = attendanceData.filter(record => record.status === 'Özürlü')
     .reduce((sum, record) => sum + record.days, 0);
@@ -73,6 +93,9 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
   
   const speakAttendanceInfo = () => {
     if (!('speechSynthesis' in window)) return;
+    
+    // Indicate speaking has started (to disable mic in VoiceRecognition)
+    setIsSpeaking(true);
     
     // Cancel any previous speech
     window.speechSynthesis.cancel();
@@ -87,6 +110,7 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
     speech.volume = 1;
     
     speech.onend = () => {
+      setIsSpeaking(false);
       setHasReadInfo(true);
       // Return to main screen after reading is complete
       speakTimeoutRef.current = setTimeout(() => {
@@ -97,6 +121,7 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
     // Estimate speech duration for fallback timer (if onend doesn't trigger)
     const estimatedDuration = textToSpeak.length * 70; // ~70ms per character in Turkish
     speakTimeoutRef.current = setTimeout(() => {
+      setIsSpeaking(false);
       setHasReadInfo(true);
       onTimeout();
     }, estimatedDuration + 5000); // Add extra buffer
@@ -169,14 +194,25 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
             onClick={speakAttendanceInfo}
             className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md transition-all duration-200 transform"
             aria-label="Devamsızlık bilgilerini sesli dinle"
+            disabled={isSpeaking}
           >
             <Volume2Icon size={20} />
             Bilgileri Sesli Dinle
           </button>
         </div>
         
+        <div className="flex items-center justify-center space-x-2 mt-6 text-center bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+          <Clock size={18} className="text-amber-600" />
+          <p className="text-amber-700 font-medium">Bu ekran <span className="font-bold text-amber-800">{secondsLeft}</span> saniye sonra otomatik olarak kapanacaktır.</p>
+        </div>
+        
+        {isSpeaking && (
+          <div className="mt-4 text-center p-2 bg-blue-100 text-blue-800 rounded-lg animate-pulse">
+            <p>Sistem konuşuyor, lütfen bekleyiniz...</p>
+          </div>
+        )}
+        
         <div className="mt-4 text-center text-sm text-gray-600" aria-live="polite">
-          <p>İşlem tamamlandıktan sonra otomatik olarak ana ekrana dönülecektir.</p>
           <p>Çıkmak için ESC tuşuna basabilirsiniz.</p>
         </div>
       </CardContent>

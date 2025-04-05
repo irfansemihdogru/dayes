@@ -27,6 +27,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   const [audioEnabled, setAudioEnabled] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const isSpeakingRef = useRef(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
   useEffect(() => {
     // Set countdown timer
@@ -41,7 +42,11 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
       });
     }, 1000);
     
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      // Make sure to stop speaking when component unmounts
+      window.speechSynthesis.cancel();
+    }
   }, [onTimeout]);
 
   useEffect(() => {
@@ -68,7 +73,9 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
     // Cancel any previous speech
     window.speechSynthesis.cancel();
     
+    // Indicate speaking has started
     isSpeakingRef.current = true;
+    setIsSpeaking(true);
     
     const speech = new SpeechSynthesisUtterance(text);
     speech.lang = 'tr-TR';
@@ -78,11 +85,21 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
     
     speech.onend = () => {
       isSpeakingRef.current = false;
+      setIsSpeaking(false);
     };
     
     speech.onerror = () => {
       isSpeakingRef.current = false;
+      setIsSpeaking(false);
     };
+    
+    // Fallback in case the speech events don't fire
+    setTimeout(() => {
+      if (isSpeakingRef.current) {
+        isSpeakingRef.current = false;
+        setIsSpeaking(false);
+      }
+    }, text.length * 70 + 2000); // Estimated duration + buffer
     
     window.speechSynthesis.speak(speech);
   };
@@ -91,6 +108,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
     if (audioEnabled) {
       window.speechSynthesis.cancel(); // Stop speaking if turning off
       isSpeakingRef.current = false;
+      setIsSpeaking(false);
     } else {
       // Re-speak the information when turning back on
       speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
@@ -121,6 +139,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
             onClick={toggleAudio}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
             aria-label={audioEnabled ? "Sesli okumayı kapat" : "Sesli okumayı aç"}
+            disabled={isSpeaking}
           >
             {audioEnabled ? 
               <Volume2Icon size={20} className="text-white" /> : 
@@ -165,12 +184,18 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
             onClick={() => speakText(getDetailedDirections())}
             className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md transition-all duration-200"
             aria-label="Yönlendirmeleri tekrar oku"
-            disabled={isSpeakingRef.current}
+            disabled={isSpeaking}
           >
             <Volume2Icon size={20} className="mr-2" />
             Yönlendirmeleri Sesli Dinle
           </button>
         </div>
+        
+        {isSpeaking && (
+          <div className="mt-4 text-center p-2 bg-blue-100 text-blue-800 rounded-lg animate-pulse">
+            <p>Sistem konuşuyor, lütfen bekleyiniz...</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
