@@ -37,6 +37,7 @@ const staffInfo: Record<string, StaffRoomInfo> = {
   'FEHMİ OKŞAK': { name: 'FEHMİ OKŞAK', floor: 3, location: 'sol', roomNumber: 32 },
   'ÖZLEM KOTANOĞLU': { name: 'ÖZLEM KOTANOĞLU', floor: 1, location: 'koridor sonunda', roomNumber: 8 },
   'ASUMAN ÖZŞİMŞEKLER': { name: 'ASUMAN ÖZŞİMŞEKLER', floor: 2, location: 'merdiven karşısı', roomNumber: 22 },
+  'OKAN KARAHAN': { name: 'OKAN KARAHAN', floor: 1, location: 'giriş kapısı yanında', roomNumber: 5 },
 };
 
 const gradeToStaff: StaffMapping = {
@@ -50,6 +51,7 @@ const serviceToStaff: StaffMapping = {
   'mesem': 'YENER HANCI',
   'usta-ogreticilik-belgesi': 'YENER HANCI',
   'diploma': 'YENER HANCI',
+  'disiplin': 'OKAN KARAHAN', // Direct all discipline issues to OKAN KARAHAN
   '9-sinif-kayit': 'ERDEM ÜÇER',
 };
 
@@ -62,6 +64,7 @@ const Index = () => {
   const [isListening, setIsListening] = useState(false);
   const [voicePrompt, setVoicePrompt] = useState<string>('');
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [welcomeMessagePlaying, setWelcomeMessagePlaying] = useState(false);
   const { toast } = useToast();
   const appInitialized = useRef(false);
   
@@ -72,14 +75,18 @@ const Index = () => {
       // Small delay to ensure the app has rendered
       setTimeout(() => {
         if (audioEnabled) {
+          setWelcomeMessagePlaying(true);
           speakWelcomeMessage();
         }
       }, 1000);
     }
-  }, []);
+  }, [audioEnabled]);
   
   const speakWelcomeMessage = () => {
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      setWelcomeMessagePlaying(false);
+      return;
+    }
     
     // Cancel any previous speech
     window.speechSynthesis.cancel();
@@ -91,11 +98,32 @@ const Index = () => {
     speech.pitch = 1;
     speech.volume = 1;
     
+    // When speech ends, mark welcome message as complete
+    speech.onend = () => {
+      console.log('Welcome message finished playing');
+      setWelcomeMessagePlaying(false);
+    };
+    
+    // Fallback in case onend doesn't trigger
+    speech.onerror = () => {
+      console.log('Welcome message error or interrupted');
+      setWelcomeMessagePlaying(false);
+    };
+    
+    // Estimate speech duration for fallback timer
+    const estimatedDuration = welcomeText.length * 50; // ~50ms per character
+    setTimeout(() => {
+      setWelcomeMessagePlaying(false);
+    }, estimatedDuration);
+    
     window.speechSynthesis.speak(speech);
   };
   
   const speakText = (text: string) => {
     if (!audioEnabled || !('speechSynthesis' in window)) return;
+    
+    // Disable microphone while speaking
+    setIsListening(false);
     
     // Cancel any previous speech
     window.speechSynthesis.cancel();
@@ -105,6 +133,21 @@ const Index = () => {
     speech.rate = 0.9;
     speech.pitch = 1;
     speech.volume = 1;
+    
+    // Re-enable microphone when speech ends
+    speech.onend = () => {
+      if (appState === 'main-menu' || appState === 'grade-selection') {
+        setIsListening(true);
+      }
+    };
+    
+    // Fallback in case onend doesn't trigger
+    const estimatedDuration = text.length * 50; // ~50ms per character
+    setTimeout(() => {
+      if (appState === 'main-menu' || appState === 'grade-selection') {
+        setIsListening(true);
+      }
+    }, estimatedDuration + 500); // Add a small buffer
     
     window.speechSynthesis.speak(speech);
   };
@@ -143,14 +186,20 @@ const Index = () => {
       case 'main-menu': {
         const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
         setVoicePrompt(prompt);
-        setIsListening(true);
+        // Only start listening if not speaking
+        if (!window.speechSynthesis.speaking) {
+          setIsListening(true);
+        }
         if (audioEnabled) speakText(prompt);
         break;
       }
       case 'grade-selection': {
         const prompt = 'Öğrenciniz kaçıncı sınıf?';
         setVoicePrompt(prompt);
-        setIsListening(true);
+        // Only start listening if not speaking
+        if (!window.speechSynthesis.speaking) {
+          setIsListening(true);
+        }
         if (audioEnabled) speakText(prompt);
         break;
       }
@@ -173,6 +222,11 @@ const Index = () => {
     setDirectedStaff('');
     setIsListening(false);
     
+    // Stop any ongoing speech
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    
     // Speak reset message
     if (audioEnabled) {
       speakText('Sistem sıfırlandı. Yüz tanıma başlatılıyor.');
@@ -184,6 +238,13 @@ const Index = () => {
     
     if (service === 'devamsizlik') {
       setAppState('attendance-form');
+      return;
+    }
+    
+    // Direct discipline issues to OKAN KARAHAN without asking for grade
+    if (service === 'disiplin') {
+      setDirectedStaff('OKAN KARAHAN');
+      setAppState('staff-direction');
       return;
     }
     
@@ -276,13 +337,16 @@ const Index = () => {
   const toggleAudio = () => {
     setAudioEnabled(!audioEnabled);
     
+    // Stop any ongoing speech when turning off audio
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    
     // Notify user about audio state change
     if (!audioEnabled) { // Turning on
       setTimeout(() => {
         speakText('Sesli yönlendirme etkinleştirildi.');
       }, 100);
-    } else { // Turning off
-      window.speechSynthesis.cancel(); // Stop any ongoing speech
     }
   };
   
@@ -297,7 +361,7 @@ const Index = () => {
   
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
-      <div className="w-full max-w-4xl mb-8">
+      <div className="w-full max-w-5xl mb-8">
         <div className="text-center mb-4 flex items-center justify-center">
           <h1 className="text-4xl font-bold text-blue-800">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
           <button
@@ -314,7 +378,10 @@ const Index = () => {
         
         <div className="transition-all duration-500 fade-in">
           {appState === 'face-recognition' && (
-            <FaceRecognition onDetected={handleFaceDetected} />
+            <FaceRecognition 
+              onDetected={handleFaceDetected}
+              isWelcomeMessagePlaying={welcomeMessagePlaying}
+            />
           )}
           
           {appState === 'main-menu' && (

@@ -26,6 +26,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   const [secondsLeft, setSecondsLeft] = useState(30);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const isSpeakingRef = useRef(false);
   
   useEffect(() => {
     // Set countdown timer
@@ -67,11 +68,21 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
     // Cancel any previous speech
     window.speechSynthesis.cancel();
     
+    isSpeakingRef.current = true;
+    
     const speech = new SpeechSynthesisUtterance(text);
     speech.lang = 'tr-TR';
     speech.rate = 0.9; // Slightly slower for better understanding
     speech.pitch = 1;
     speech.volume = 1;
+    
+    speech.onend = () => {
+      isSpeakingRef.current = false;
+    };
+    
+    speech.onerror = () => {
+      isSpeakingRef.current = false;
+    };
     
     window.speechSynthesis.speak(speech);
   };
@@ -79,11 +90,25 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   const toggleAudio = () => {
     if (audioEnabled) {
       window.speechSynthesis.cancel(); // Stop speaking if turning off
+      isSpeakingRef.current = false;
     } else {
       // Re-speak the information when turning back on
       speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
     }
     setAudioEnabled(!audioEnabled);
+  };
+  
+  const getDetailedDirections = () => {
+    const { floor, location, roomNumber } = staffRoomInfo;
+    let floorText = '';
+    
+    if (floor === 1) {
+      floorText = 'Giriş katında';
+    } else {
+      floorText = `${floor}. kata çıkmanız gerekiyor`;
+    }
+    
+    return `${floorText}, ${location} tarafta ${roomNumber} numaralı odaya gidiniz.`;
   };
   
   return (
@@ -123,7 +148,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
             <MapPinIcon className="text-green-600 mr-2" size={24} />
             <p className="text-xl font-medium text-green-800">{getLocationDisplay()}</p>
           </div>
-          <p className="text-md text-green-700">{getDirectionsDescription()}</p>
+          <p className="text-md text-green-700">{getDetailedDirections()}</p>
         </div>
         
         <div className="mt-6 text-center text-sm text-gray-600">
@@ -131,9 +156,10 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         </div>
         
         <button 
-          onClick={() => speakText(getDirectionsDescription())}
+          onClick={() => speakText(getDetailedDirections())}
           className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           aria-label="Yönlendirmeleri tekrar oku"
+          disabled={isSpeakingRef.current}
         >
           <Volume1Icon size={18} className="mr-2" />
           Yönlendirmeleri Sesli Dinle
