@@ -69,7 +69,19 @@
   body {
     @apply bg-gradient-to-b from-blue-50 to-white dark:from-blue-950 dark:to-gray-900;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    transition: background-color 0.3s ease;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Accessibility improvements */
+  :focus-visible {
+    @apply outline-2 outline-blue-600 dark:outline-blue-400 outline-offset-2;
+  }
+
+  /* Skip to content link (accessibility) */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 
+    focus:px-4 focus:py-2 focus:bg-white dark:focus:bg-gray-800 focus:text-blue-700 
+    dark:focus:text-blue-300 focus:rounded focus:shadow-lg;
   }
 }
 
@@ -102,4 +114,34 @@
 
 .dark .text-shadow {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Improved animation for transitions */
+.page-transition {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.page-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Accessibility: ensure proper contrast */
+.dark button, 
+.dark a {
+  @apply focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900;
+}
+
+/* Improve keyboard navigation visibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  @apply outline-2 outline-blue-600 dark:outline-blue-400 outline-offset-2 ring-2 ring-blue-500;
 }

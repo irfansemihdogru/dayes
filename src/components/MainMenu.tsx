@@ -38,10 +38,11 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
               variant="outline"
               className={`h-16 text-lg ${
                 isDarkMode 
-                  ? 'border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
+                  ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
                   : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
               } transition-all`}
               onClick={() => onSelection(item.id)}
+              aria-label={`${item.name} işlemini seçin`}
             >
               {item.name}
             </Button>

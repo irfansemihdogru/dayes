@@ -22,7 +22,12 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, audioEnabled, toggle
         <Card className={`${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-xl`}>
           <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg text-center py-8`}>
             <div className="flex justify-center mb-4">
-              <Landmark size={48} className="text-white" />
+              <img 
+                src="https://i.hizliresim.com/86akbt6.png" 
+                alt="Yıldırım Mesleki ve Teknik Anadolu Lisesi Logo" 
+                className="h-24 w-auto"
+                aria-label="Okul logosu" 
+              />
             </div>
             <CardTitle className="text-3xl font-bold">
               Yıldırım Mesleki ve Teknik Anadolu Lisesi

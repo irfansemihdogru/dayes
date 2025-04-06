@@ -85,6 +85,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   };
 
   const speakFullDescription = () => {
+    // Enhanced text with clear information about staff name, action reason, and location details
     const fullText = `${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`;
     speakText(fullText);
   };
