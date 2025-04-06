@@ -29,6 +29,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   const isSpeakingRef = useRef(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const initialSpeechDoneRef = useRef(false);
   
   useEffect(() => {
     // Set countdown timer
@@ -59,11 +60,14 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   }, [onTimeout]);
 
   useEffect(() => {
-    // Initialize audio context for screen reader announcement
-    if (staffRoomInfo && audioEnabled) {
-      speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
+    // Initialize audio automatically when component mounts
+    if (!initialSpeechDoneRef.current) {
+      initialSpeechDoneRef.current = true;
+      setTimeout(() => {
+        speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
+      }, 300);
     }
-  }, [staffName, reason, staffRoomInfo, audioEnabled]);
+  }, []);
 
   const getDirectionsDescription = (): string => {
     const { floor, location, roomNumber } = staffRoomInfo;

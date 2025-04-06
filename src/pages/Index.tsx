@@ -7,11 +7,13 @@ import AttendanceForm from '@/components/AttendanceForm';
 import AttendanceResult from '@/components/AttendanceResult';
 import StaffDirectionResult from '@/components/StaffDirectionResult';
 import VoiceRecognition from '@/components/VoiceRecognition';
+import StartScreen from '@/components/StartScreen';
 import { processVoiceCommand } from '@/utils/geminiApi';
 import { useToast } from '@/hooks/use-toast';
 import { Volume2Icon, VolumeXIcon } from 'lucide-react';
 
 type AppState = 
+  | 'start-screen'
   | 'face-recognition'
   | 'main-menu'
   | 'grade-selection'
@@ -56,7 +58,7 @@ const serviceToStaff: StaffMapping = {
 };
 
 const Index = () => {
-  const [appState, setAppState] = useState<AppState>('face-recognition');
+  const [appState, setAppState] = useState<AppState>('start-screen');
   const [selectedService, setSelectedService] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [studentName, setStudentName] = useState<string>('');
@@ -76,7 +78,7 @@ const Index = () => {
   
   // Welcome message when app loads
   useEffect(() => {
-    if (!appInitialized.current) {
+    if (!appInitialized.current && appState === 'face-recognition') {
       appInitialized.current = true;
       // Small delay to ensure the app has rendered
       setTimeout(() => {
@@ -86,7 +88,7 @@ const Index = () => {
         }
       }, 1000);
     }
-  }, [audioEnabled]);
+  }, [appState, audioEnabled]);
   
   const speakWelcomeMessage = () => {
     if (!('speechSynthesis' in window)) {
@@ -192,10 +194,12 @@ const Index = () => {
     }
   };
   
+  // Handle ESC key to reset the app with page reload
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        resetApp();
+        // Reload the page instead of just resetting state
+        window.location.reload();
       }
     };
     
@@ -208,6 +212,10 @@ const Index = () => {
     // Don't update voice prompts during transitions
     const transitionDelay = setTimeout(() => {
       switch (appState) {
+        case 'start-screen':
+          setVoicePrompt('');
+          setIsListening(false);
+          break;
         case 'face-recognition':
           setVoicePrompt('');
           setIsListening(false);
@@ -253,16 +261,28 @@ const Index = () => {
       isSpeakingRef.current = false;
     }
     
+    // Reload the page instead of just resetting state
+    window.location.reload();
+  };
+  
+  const handleStartApp = () => {
     setAppState('face-recognition');
-    setSelectedService('');
-    setSelectedGrade(null);
-    setStudentName('');
-    setDirectedStaff('');
-    setIsListening(false);
+  };
+  
+  const toggleAudio = () => {
+    // Stop any ongoing speech when turning off audio
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      isSpeakingRef.current = false;
+    }
     
-    // Speak reset message
-    if (audioEnabled) {
-      speakText('Sistem sıfırlandı. Yüz tanıma başlatılıyor.');
+    setAudioEnabled(!audioEnabled);
+    
+    // Notify user about audio state change
+    if (!audioEnabled) { // Turning on
+      setTimeout(() => {
+        speakText('Sesli yönlendirme etkinleştirildi.');
+      }, 300);
     }
   };
   
@@ -367,23 +387,6 @@ const Index = () => {
     return serviceMap[selectedService] || selectedService;
   };
   
-  const toggleAudio = () => {
-    // Stop any ongoing speech when turning off audio
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      isSpeakingRef.current = false;
-    }
-    
-    setAudioEnabled(!audioEnabled);
-    
-    // Notify user about audio state change
-    if (!audioEnabled) { // Turning on
-      setTimeout(() => {
-        speakText('Sesli yönlendirme etkinleştirildi.');
-      }, 300);
-    }
-  };
-  
   const getStaffRoomInfo = (staffName: string): StaffRoomInfo => {
     return staffInfo[staffName] || { 
       name: staffName, 
@@ -392,99 +395,135 @@ const Index = () => {
       roomNumber: 1
     };
   };
-  
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
-      <div className="w-full max-w-5xl mb-8">
-        <div className="text-center mb-4 flex items-center justify-center">
-          <h1 className="text-4xl font-bold text-blue-800">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
-          <button
-            onClick={toggleAudio}
-            className="ml-3 p-2 bg-white rounded-full shadow hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label={audioEnabled ? "Sesli yönlendirmeyi kapat" : "Sesli yönlendirmeyi aç"}
-          >
-            {audioEnabled ? 
-              <Volume2Icon size={20} className="text-blue-700" /> :
-              <VolumeXIcon size={20} className="text-gray-500" />
-            }
-          </button>
-        </div>
-        
-        <div className="transition-all duration-500 fade-in">
-          {appState === 'face-recognition' && (
-            <FaceRecognition 
-              onDetected={handleFaceDetected}
-              isWelcomeMessagePlaying={welcomeMessagePlaying}
-            />
-          )}
-          
-          {appState === 'main-menu' && (
-            <MainMenu onSelection={handleServiceSelection} />
-          )}
-          
-          {appState === 'grade-selection' && (
-            <GradeSelection onSelection={handleGradeSelection} />
-          )}
-          
-          {appState === 'attendance-form' && (
-            <AttendanceForm onSubmit={handleAttendanceFormSubmit} />
-          )}
-          
-          {appState === 'attendance-result' && studentName && selectedGrade && (
-            <AttendanceResult 
-              studentName={studentName}
-              grade={selectedGrade}
-              onTimeout={resetApp}
-            />
-          )}
-          
-          {appState === 'staff-direction' && (
-            <StaffDirectionResult 
-              staffName={directedStaff}
-              staffRoomInfo={getStaffRoomInfo(directedStaff)}
-              reason={getServiceDisplayName()}
-              onTimeout={resetApp}
-            />
-          )}
-        </div>
-        
-        {/* Show voice recognition UI in states that need it */}
-        {(appState === 'main-menu' || appState === 'grade-selection') && (
-          <div className="mt-4">
-            <VoiceRecognition 
-              isListening={isListening} 
-              onResult={handleVoiceResult}
-              prompt={voicePrompt}
-            />
+
+  // Render the appropriate component based on app state
+  const renderContent = () => {
+    switch (appState) {
+      case 'start-screen':
+        return <StartScreen 
+          onStart={handleStartApp} 
+          audioEnabled={audioEnabled} 
+          toggleAudio={toggleAudio} 
+        />;
+      
+      case 'face-recognition':
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
+            <div className="w-full max-w-5xl mb-8">
+              <div className="text-center mb-4 flex items-center justify-center">
+                <h1 className="text-4xl font-bold text-blue-800">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
+                <button
+                  onClick={toggleAudio}
+                  className="ml-3 p-2 bg-white rounded-full shadow hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label={audioEnabled ? "Sesli yönlendirmeyi kapat" : "Sesli yönlendirmeyi aç"}
+                >
+                  {audioEnabled ? 
+                    <Volume2Icon size={20} className="text-blue-700" /> :
+                    <VolumeXIcon size={20} className="text-gray-500" />
+                  }
+                </button>
+              </div>
+              
+              <div className="transition-all duration-500 fade-in">
+                <FaceRecognition 
+                  onDetected={handleFaceDetected}
+                  isWelcomeMessagePlaying={welcomeMessagePlaying}
+                />
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        );
       
-      <div className="mt-4 text-center">
-        <p className="text-gray-600 text-sm" role="note">
-          ESC tuşuna basarak sistemi sıfırlayabilirsiniz
-        </p>
-        <p className="text-gray-500 text-xs mt-1">
-          Bu sistem görme ve işitme engelli kullanıcılar için erişilebilirlik desteklerine sahiptir
-        </p>
-      </div>
-      
-      {/* Konuşma/Dinleme Durumu Göstergesi */}
-      {isSpeakingRef.current && (
-        <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center">
-          <Volume2Icon size={16} className="mr-2" />
-          <span>Sistem konuşuyor...</span>
-        </div>
-      )}
-      
-      {isListening && !isSpeakingRef.current && (
-        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center">
-          <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
-          <span>Dinleniyor...</span>
-        </div>
-      )}
-    </div>
-  );
+      default:
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
+            <div className="w-full max-w-5xl mb-8">
+              <div className="text-center mb-4 flex items-center justify-center">
+                <h1 className="text-4xl font-bold text-blue-800">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
+                <button
+                  onClick={toggleAudio}
+                  className="ml-3 p-2 bg-white rounded-full shadow hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label={audioEnabled ? "Sesli yönlendirmeyi kapat" : "Sesli yönlendirmeyi aç"}
+                >
+                  {audioEnabled ? 
+                    <Volume2Icon size={20} className="text-blue-700" /> :
+                    <VolumeXIcon size={20} className="text-gray-500" />
+                  }
+                </button>
+              </div>
+              
+              <div className="transition-all duration-500 fade-in">
+                {appState === 'main-menu' && (
+                  <MainMenu onSelection={handleServiceSelection} />
+                )}
+                
+                {appState === 'grade-selection' && (
+                  <GradeSelection onSelection={handleGradeSelection} />
+                )}
+                
+                {appState === 'attendance-form' && (
+                  <AttendanceForm onSubmit={handleAttendanceFormSubmit} />
+                )}
+                
+                {appState === 'attendance-result' && studentName && selectedGrade && (
+                  <AttendanceResult 
+                    studentName={studentName}
+                    grade={selectedGrade}
+                    onTimeout={resetApp}
+                  />
+                )}
+                
+                {appState === 'staff-direction' && (
+                  <StaffDirectionResult 
+                    staffName={directedStaff}
+                    staffRoomInfo={getStaffRoomInfo(directedStaff)}
+                    reason={getServiceDisplayName()}
+                    onTimeout={resetApp}
+                  />
+                )}
+              </div>
+              
+              {/* Show voice recognition UI in states that need it */}
+              {(appState === 'main-menu' || appState === 'grade-selection') && (
+                <div className="mt-4">
+                  <VoiceRecognition 
+                    isListening={isListening} 
+                    onResult={handleVoiceResult}
+                    prompt={voicePrompt}
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-4 text-center">
+              <p className="text-gray-600 text-sm" role="note">
+                ESC tuşuna basarak sistemi sıfırlayabilirsiniz
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Bu sistem görme ve işitme engelli kullanıcılar için erişilebilirlik desteklerine sahiptir
+              </p>
+            </div>
+            
+            {/* Konuşma/Dinleme Durumu Göstergesi */}
+            {isSpeakingRef.current && (
+              <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center">
+                <Volume2Icon size={16} className="mr-2" />
+                <span>Sistem konuşuyor...</span>
+              </div>
+            )}
+            
+            {isListening && !isSpeakingRef.current && (
+              <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center">
+                <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
+                <span>Dinleniyor...</span>
+              </div>
+            )}
+          </div>
+        );
+    }
+  };
+  
+  return renderContent();
 };
 
 export default Index;

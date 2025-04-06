@@ -99,7 +99,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       // Move to grade selection after a short delay
       setTimeout(() => {
         setStage('grade');
-        speakText("Lütfen öğrencinin sınıfını söyleyin. 9, 10, 11 veya 12 olarak belirtiniz.");
+        speakText("Lütfen öğrencinin sınıfını söyleyin.");
       }, 500);
     } else {
       // If somehow we got empty input, restart listening
@@ -114,7 +114,8 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     
     // Try to extract the grade from the spoken text
     const lowerText = text.toLowerCase();
-    let detectedGrade: number | null = null;
+    // Default to 9th grade if no grade is detected
+    let detectedGrade: number = 9;
     
     // More aggressive pattern matching for grade numbers
     if (lowerText.includes("9") || lowerText.includes("dokuz")) {
@@ -127,31 +128,23 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       detectedGrade = 12;
     }
     
-    if (detectedGrade) {
-      setGrade(detectedGrade);
-      
-      // Submit the form after both name and grade are collected
+    setGrade(detectedGrade);
+    
+    // Always proceed with whatever grade we detected or defaulted to
+    setTimeout(() => {
+      speakText(`${name} isimli ${detectedGrade}. sınıf öğrencisinin devamsızlık bilgileri getiriliyor.`);
       setTimeout(() => {
-        speakText(`${name} isimli ${detectedGrade}. sınıf öğrencisinin devamsızlık bilgileri getiriliyor.`);
-        setTimeout(() => {
-          onSubmit(name, detectedGrade);
-        }, 2500);
-      }, 500);
-    } else {
-      // If no grade is detected, ask again with a more specific prompt
-      setTimeout(() => {
-        speakText("Sınıf anlaşılamadı. Lütfen 9, 10, 11 veya 12 olarak tekrar söyleyiniz.");
-        setTimeout(() => {
-          setIsListening(true);
-        }, 300);
-      }, 500);
-    }
+        onSubmit(name, detectedGrade);
+      }, 2000);
+    }, 300);
   };
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && grade) {
-      onSubmit(name, grade);
+    if (name) {
+      // Default to grade 9 if none selected
+      const selectedGrade = grade || 9;
+      onSubmit(name, selectedGrade);
     }
   };
 
@@ -159,12 +152,12 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     setGrade(selectedGrade);
     setIsListening(false); // Stop listening when grade is selected
     
-    // Submit the form after both name and grade are collected
+    // Submit the form immediately after selecting grade
     setTimeout(() => {
       speakText(`${name} isimli ${selectedGrade}. sınıf öğrencisinin devamsızlık bilgileri getiriliyor.`);
       setTimeout(() => {
         onSubmit(name, selectedGrade);
-      }, 2500);
+      }, 2000);
     }, 300);
   };
   
@@ -244,7 +237,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
               type="button"
               onClick={() => speakText(stage === 'name' 
                 ? "Lütfen öğrencinin adını ve soyadını söyleyin." 
-                : "Lütfen öğrencinin sınıfını söyleyin. 9, 10, 11 veya 12 olarak belirtiniz."
+                : "Lütfen öğrencinin sınıfını söyleyin."
               )}
               className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200"
               aria-label="Talimatları tekrar dinle"
