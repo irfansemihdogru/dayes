@@ -11,6 +11,7 @@ import StartScreen from '@/components/StartScreen';
 import { processVoiceCommand } from '@/utils/geminiApi';
 import { useToast } from '@/hooks/use-toast';
 import { Volume2Icon, VolumeXIcon } from 'lucide-react';
+import { useTheme } from '@/context/ThemeContext';
 
 type AppState = 
   | 'start-screen'
@@ -70,6 +71,7 @@ const Index = () => {
   const { toast } = useToast();
   const appInitialized = useRef(false);
   const isSpeakingRef = useRef(false);
+  const { theme } = useTheme();
   
   // Helper function to check if speech synthesis is speaking
   const isSpeaking = () => {
@@ -209,16 +211,17 @@ const Index = () => {
   
   // Set appropriate voice prompts based on app state
   useEffect(() => {
+    // Always turn off listening when changing states
+    setIsListening(false);
+    
     // Don't update voice prompts during transitions
     const transitionDelay = setTimeout(() => {
       switch (appState) {
         case 'start-screen':
           setVoicePrompt('');
-          setIsListening(false);
           break;
         case 'face-recognition':
           setVoicePrompt('');
-          setIsListening(false);
           break;
         case 'main-menu': {
           const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
@@ -242,11 +245,10 @@ const Index = () => {
         }
         case 'attendance-form':
           // Voice recognition handled in the form
-          setIsListening(false);
           break;
         case 'attendance-result':
         case 'staff-direction':
-          setIsListening(false);
+          // No voice recognition in these states
           break;
       }
     }, 300); // Small delay to allow for transitions
@@ -408,18 +410,18 @@ const Index = () => {
       
       case 'face-recognition':
         return (
-          <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
+          <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white dark:from-blue-950 dark:to-gray-900 transition-colors duration-300">
             <div className="w-full max-w-5xl mb-8">
               <div className="text-center mb-4 flex items-center justify-center">
-                <h1 className="text-4xl font-bold text-blue-800">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
+                <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
                 <button
                   onClick={toggleAudio}
-                  className="ml-3 p-2 bg-white rounded-full shadow hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="ml-3 p-2 bg-white dark:bg-gray-800 rounded-full shadow hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   aria-label={audioEnabled ? "Sesli yönlendirmeyi kapat" : "Sesli yönlendirmeyi aç"}
                 >
                   {audioEnabled ? 
-                    <Volume2Icon size={20} className="text-blue-700" /> :
-                    <VolumeXIcon size={20} className="text-gray-500" />
+                    <Volume2Icon size={20} className="text-blue-700 dark:text-blue-400" /> :
+                    <VolumeXIcon size={20} className="text-gray-500 dark:text-gray-400" />
                   }
                 </button>
               </div>
@@ -436,18 +438,18 @@ const Index = () => {
       
       default:
         return (
-          <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white">
+          <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white dark:from-blue-950 dark:to-gray-900 transition-colors duration-300">
             <div className="w-full max-w-5xl mb-8">
               <div className="text-center mb-4 flex items-center justify-center">
-                <h1 className="text-4xl font-bold text-blue-800">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
+                <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
                 <button
                   onClick={toggleAudio}
-                  className="ml-3 p-2 bg-white rounded-full shadow hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="ml-3 p-2 bg-white dark:bg-gray-800 rounded-full shadow hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   aria-label={audioEnabled ? "Sesli yönlendirmeyi kapat" : "Sesli yönlendirmeyi aç"}
                 >
                   {audioEnabled ? 
-                    <Volume2Icon size={20} className="text-blue-700" /> :
-                    <VolumeXIcon size={20} className="text-gray-500" />
+                    <Volume2Icon size={20} className="text-blue-700 dark:text-blue-400" /> :
+                    <VolumeXIcon size={20} className="text-gray-500 dark:text-gray-400" />
                   }
                 </button>
               </div>
@@ -484,7 +486,7 @@ const Index = () => {
               </div>
               
               {/* Show voice recognition UI in states that need it */}
-              {(appState === 'main-menu' || appState === 'grade-selection') && (
+              {(appState === 'main-menu' || appState === 'grade-selection') && isListening && (
                 <div className="mt-4">
                   <VoiceRecognition 
                     isListening={isListening} 
@@ -496,24 +498,24 @@ const Index = () => {
             </div>
             
             <div className="mt-4 text-center">
-              <p className="text-gray-600 text-sm" role="note">
+              <p className="text-gray-600 dark:text-gray-400 text-sm" role="note">
                 ESC tuşuna basarak sistemi sıfırlayabilirsiniz
               </p>
-              <p className="text-gray-500 text-xs mt-1">
+              <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">
                 Bu sistem görme ve işitme engelli kullanıcılar için erişilebilirlik desteklerine sahiptir
               </p>
             </div>
             
             {/* Konuşma/Dinleme Durumu Göstergesi */}
             {isSpeakingRef.current && (
-              <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center">
+              <div className="fixed bottom-4 right-4 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center">
                 <Volume2Icon size={16} className="mr-2" />
                 <span>Sistem konuşuyor...</span>
               </div>
             )}
             
             {isListening && !isSpeakingRef.current && (
-              <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center">
+              <div className="fixed bottom-4 right-4 bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded-full shadow-lg flex items-center">
                 <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
                 <span>Dinleniyor...</span>
               </div>

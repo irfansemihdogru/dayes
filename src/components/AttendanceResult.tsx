@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Volume2Icon, Clock } from 'lucide-react';
+import { useTheme } from '@/context/ThemeContext';
 
 interface AttendanceResultProps {
   studentName: string;
@@ -50,6 +51,7 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
   const isSpeakingRef = useRef(false);
   const speakTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const { theme } = useTheme();
   
   // Initialize countdown timer
   useEffect(() => {
@@ -151,59 +153,59 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
   }, [attendanceData, hasReadInfo]);
   
   return (
-    <Card className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm shadow-lg">
-      <CardHeader className="bg-blue-600 text-white rounded-t-lg text-center">
+    <Card className="w-full max-w-4xl mx-auto bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-lg">
+      <CardHeader className="bg-blue-600 dark:bg-blue-800 text-white rounded-t-lg text-center">
         <CardTitle className="text-2xl text-center">
           {studentName} - {grade}. Sınıf Devamsızlık Bilgileri
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        <div className="rounded-md border mb-4 overflow-x-auto" role="region" aria-label="Devamsızlık tablosu">
+        <div className="rounded-md border dark:border-gray-700 mb-4 overflow-x-auto" role="region" aria-label="Devamsızlık tablosu">
           <Table>
             <TableHeader>
-              <TableRow className="bg-blue-50">
-                <TableHead className="w-[180px]">Tarih</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead className="text-right">Gün Sayısı</TableHead>
+              <TableRow className="bg-blue-50 dark:bg-blue-900/30">
+                <TableHead className="w-[180px] dark:text-gray-300">Tarih</TableHead>
+                <TableHead className="dark:text-gray-300">Durum</TableHead>
+                <TableHead className="text-right dark:text-gray-300">Gün Sayısı</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {attendanceData.map((record, index) => (
-                <TableRow key={index}>
-                  <TableCell>{record.date}</TableCell>
+                <TableRow key={index} className="dark:border-gray-700">
+                  <TableCell className="dark:text-gray-300">{record.date}</TableCell>
                   <TableCell>
                     <span 
                       className={`px-2 py-1 rounded text-sm ${
                         record.status === 'Özürlü' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/70 dark:text-green-300' 
+                        : 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-300'
                       }`}
                     >
                       {record.status}
                     </span>
                   </TableCell>
-                  <TableCell className="text-right">{record.days} gün</TableCell>
+                  <TableCell className="text-right dark:text-gray-300">{record.days} gün</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
         
-        <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
-          <div className="text-center p-3 bg-white rounded-md shadow-sm">
-            <p className="text-sm text-gray-600">Toplam Özürlü</p>
-            <p className="text-2xl font-bold text-blue-800">{totalExcused} gün</p>
+        <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+          <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm">
+            <p className="text-sm text-gray-600 dark:text-gray-400">Toplam Özürlü</p>
+            <p className="text-2xl font-bold text-blue-800 dark:text-blue-300">{totalExcused} gün</p>
           </div>
-          <div className="text-center p-3 bg-white rounded-md shadow-sm">
-            <p className="text-sm text-gray-600">Toplam Özürsüz</p>
-            <p className="text-2xl font-bold text-red-600">{totalUnexcused} gün</p>
+          <div className="text-center p-3 bg-white dark:bg-gray-800 rounded-md shadow-sm">
+            <p className="text-sm text-gray-600 dark:text-gray-400">Toplam Özürsüz</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{totalUnexcused} gün</p>
           </div>
         </div>
         
         <div className="mt-6 flex justify-center">
           <button 
             onClick={speakAttendanceInfo}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md transition-all duration-200 transform"
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-full hover:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md transition-all duration-200 transform"
             aria-label="Devamsızlık bilgilerini sesli dinle"
             disabled={isSpeaking}
           >
@@ -212,18 +214,18 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
           </button>
         </div>
         
-        <div className="flex items-center justify-center space-x-2 mt-6 text-center bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-          <Clock size={18} className="text-amber-600" />
-          <p className="text-amber-700 font-medium">Bu ekran <span className="font-bold text-amber-800">{secondsLeft}</span> saniye sonra otomatik olarak kapanacaktır.</p>
+        <div className="flex items-center justify-center space-x-2 mt-6 text-center bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-lg border border-yellow-100 dark:border-yellow-800">
+          <Clock size={18} className="text-amber-600 dark:text-amber-500" />
+          <p className="text-amber-700 dark:text-amber-400 font-medium">Bu ekran <span className="font-bold text-amber-800 dark:text-amber-300">{secondsLeft}</span> saniye sonra otomatik olarak kapanacaktır.</p>
         </div>
         
         {isSpeaking && (
-          <div className="mt-4 text-center p-2 bg-blue-100 text-blue-800 rounded-lg animate-pulse">
+          <div className="mt-4 text-center p-2 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 rounded-lg animate-pulse">
             <p>Sistem konuşuyor, lütfen bekleyiniz...</p>
           </div>
         )}
         
-        <div className="mt-4 text-center text-sm text-gray-600" aria-live="polite">
+        <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400" aria-live="polite">
           <p>Çıkmak için ESC tuşuna basabilirsiniz.</p>
         </div>
       </CardContent>
