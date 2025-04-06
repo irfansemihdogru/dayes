@@ -115,10 +115,6 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
       isSpeakingRef.current = false;
       setIsSpeaking(false);
       setHasReadInfo(true);
-      // Return to main screen after reading is complete
-      speakTimeoutRef.current = setTimeout(() => {
-        onTimeout();
-      }, 3000); // Wait 3 seconds after speech ends before returning
     };
     
     speech.onerror = () => {
@@ -137,16 +133,15 @@ const AttendanceResult: React.FC<AttendanceResultProps> = ({ studentName, grade,
       isSpeakingRef.current = false;
       setIsSpeaking(false);
       setHasReadInfo(true);
-      onTimeout();
     }, estimatedDuration + 5000); // Add extra buffer
     
     window.speechSynthesis.speak(speech);
   };
   
-  // Auto-read information when component mounts
+  // Auto-read information when component mounts and data is loaded
   useEffect(() => {
     if (attendanceData.length > 0 && !hasReadInfo) {
-      // Small delay to ensure the component is rendered before speaking
+      // Small delay to ensure the component is fully rendered before speaking
       const timer = setTimeout(() => {
         speakAttendanceInfo();
       }, 500);

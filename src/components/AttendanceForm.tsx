@@ -99,7 +99,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       // Move to grade selection after a short delay
       setTimeout(() => {
         setStage('grade');
-        speakText("Lütfen öğrencinin sınıfını söyleyin.");
+        speakText("Öğrencinin sınıfını söyleyin.");
       }, 500);
     } else {
       // If somehow we got empty input, restart listening
@@ -130,13 +130,13 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     
     setGrade(detectedGrade);
     
-    // Always proceed with whatever grade we detected or defaulted to
+    // Always proceed immediately with whatever grade we detected
+    speakText(`${detectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`);
+    
+    // Submit after a short delay to allow speech to start
     setTimeout(() => {
-      speakText(`${name} isimli ${detectedGrade}. sınıf öğrencisinin devamsızlık bilgileri getiriliyor.`);
-      setTimeout(() => {
-        onSubmit(name, detectedGrade);
-      }, 2000);
-    }, 300);
+      onSubmit(name, detectedGrade);
+    }, 1500);
   };
   
   const handleSubmit = (e: React.FormEvent) => {
@@ -153,12 +153,11 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     setIsListening(false); // Stop listening when grade is selected
     
     // Submit the form immediately after selecting grade
+    speakText(`${selectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`);
+    
     setTimeout(() => {
-      speakText(`${name} isimli ${selectedGrade}. sınıf öğrencisinin devamsızlık bilgileri getiriliyor.`);
-      setTimeout(() => {
-        onSubmit(name, selectedGrade);
-      }, 2000);
-    }, 300);
+      onSubmit(name, selectedGrade);
+    }, 1500);
   };
   
   return (
@@ -222,7 +221,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
               onListeningEnd={() => console.log("Listening ended")}
               prompt={stage === 'name' 
                 ? "Lütfen öğrencinin adını ve soyadını söyleyin..." 
-                : "Lütfen öğrencinin sınıfını söyleyin..."
+                : "Öğrencinin sınıfını söyleyin..."
               }
             />
             {isReading && (
@@ -237,7 +236,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
               type="button"
               onClick={() => speakText(stage === 'name' 
                 ? "Lütfen öğrencinin adını ve soyadını söyleyin." 
-                : "Lütfen öğrencinin sınıfını söyleyin."
+                : "Öğrencinin sınıfını söyleyin."
               )}
               className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200"
               aria-label="Talimatları tekrar dinle"

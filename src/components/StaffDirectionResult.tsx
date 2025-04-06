@@ -59,10 +59,12 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
     }
   }, [onTimeout]);
 
+  // Initialize audio automatically when component mounts
   useEffect(() => {
-    // Initialize audio automatically when component mounts
+    // Automatically speak the directions when component mounts
     if (!initialSpeechDoneRef.current) {
       initialSpeechDoneRef.current = true;
+      // Short delay to ensure component is fully rendered
       setTimeout(() => {
         speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
       }, 300);
@@ -81,7 +83,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
 
   const speakText = (text: string) => {
     // Use Web Speech API for text-to-speech
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window) || !audioEnabled) return;
     
     // Cancel any previous speech
     window.speechSynthesis.cancel();
@@ -204,7 +206,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
             disabled={isSpeaking}
           >
             <Volume2Icon size={20} className="mr-2" />
-            Yönlendirmeleri Sesli Dinle
+            Yönlendirmeleri Tekrar Oku
           </button>
         </div>
         
