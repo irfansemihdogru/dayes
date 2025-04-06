@@ -69,7 +69,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
       initialSpeechDoneRef.current = true;
       // Short delay to ensure component is fully rendered
       setTimeout(() => {
-        speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
+        speakFullDescription();
       }, 300);
     }
   }, []);
@@ -82,6 +82,11 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   const getLocationDisplay = (): string => {
     const { floor, location, roomNumber } = staffRoomInfo;
     return `${floor}. Kat, ${location}, Oda ${roomNumber}`;
+  };
+
+  const speakFullDescription = () => {
+    const fullText = `${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`;
+    speakText(fullText);
   };
 
   const speakText = (text: string) => {
@@ -133,7 +138,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
       setIsSpeaking(false);
     } else {
       // Re-speak the information when turning back on
-      speakText(`${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${getDirectionsDescription()}`);
+      speakFullDescription();
     }
     setAudioEnabled(!audioEnabled);
   };
@@ -203,7 +208,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         
         <div className="mt-6 flex justify-center">
           <button 
-            onClick={() => speakText(getDetailedDirections())}
+            onClick={speakFullDescription}
             className="flex items-center px-6 py-3 bg-blue-600 dark:bg-blue-700 text-white rounded-full hover:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md transition-all duration-200"
             aria-label="Yönlendirmeleri tekrar oku"
             disabled={isSpeaking}

@@ -3,8 +3,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import FaceRecognition from '@/components/FaceRecognition';
 import MainMenu from '@/components/MainMenu';
 import GradeSelection from '@/components/GradeSelection';
-import AttendanceForm from '@/components/AttendanceForm';
-import AttendanceResult from '@/components/AttendanceResult';
 import StaffDirectionResult from '@/components/StaffDirectionResult';
 import VoiceRecognition from '@/components/VoiceRecognition';
 import StartScreen from '@/components/StartScreen';
@@ -18,8 +16,6 @@ type AppState =
   | 'face-recognition'
   | 'main-menu'
   | 'grade-selection'
-  | 'attendance-form'
-  | 'attendance-result'
   | 'staff-direction';
 
 interface StaffMapping {
@@ -62,7 +58,6 @@ const Index = () => {
   const [appState, setAppState] = useState<AppState>('start-screen');
   const [selectedService, setSelectedService] = useState<string>('');
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
-  const [studentName, setStudentName] = useState<string>('');
   const [directedStaff, setDirectedStaff] = useState<string>('');
   const [isListening, setIsListening] = useState(false);
   const [voicePrompt, setVoicePrompt] = useState<string>('');
@@ -71,7 +66,8 @@ const Index = () => {
   const { toast } = useToast();
   const appInitialized = useRef(false);
   const isSpeakingRef = useRef(false);
-  const { theme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
+  const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Helper function to check if speech synthesis is speaking
   const isSpeaking = () => {
@@ -91,6 +87,29 @@ const Index = () => {
       }, 1000);
     }
   }, [appState, audioEnabled]);
+  
+  // Set a timeout for voice commands - reset if no voice command is detected within 20 seconds
+  useEffect(() => {
+    // Only apply timeout in menu and grade selection states when listening is active
+    if ((appState === 'main-menu' || appState === 'grade-selection') && isListening) {
+      // Clear any existing timeout
+      if (voiceCommandTimeoutRef.current) {
+        clearTimeout(voiceCommandTimeoutRef.current);
+      }
+      
+      // Set new timeout
+      voiceCommandTimeoutRef.current = setTimeout(() => {
+        console.log('Voice command timeout - reloading page');
+        window.location.reload();
+      }, 20000); // 20 seconds timeout
+      
+      return () => {
+        if (voiceCommandTimeoutRef.current) {
+          clearTimeout(voiceCommandTimeoutRef.current);
+        }
+      };
+    }
+  }, [appState, isListening]);
   
   const speakWelcomeMessage = () => {
     if (!('speechSynthesis' in window)) {
@@ -214,6 +233,12 @@ const Index = () => {
     // Always turn off listening when changing states
     setIsListening(false);
     
+    // Reset voice command timeout when changing states
+    if (voiceCommandTimeoutRef.current) {
+      clearTimeout(voiceCommandTimeoutRef.current);
+      voiceCommandTimeoutRef.current = null;
+    }
+    
     // Don't update voice prompts during transitions
     const transitionDelay = setTimeout(() => {
       switch (appState) {
@@ -243,10 +268,6 @@ const Index = () => {
           if (audioEnabled) speakText(prompt);
           break;
         }
-        case 'attendance-form':
-          // Voice recognition handled in the form
-          break;
-        case 'attendance-result':
         case 'staff-direction':
           // No voice recognition in these states
           break;
@@ -291,11 +312,6 @@ const Index = () => {
   const handleServiceSelection = (service: string) => {
     setSelectedService(service);
     
-    if (service === 'devamsizlik') {
-      setAppState('attendance-form');
-      return;
-    }
-    
     // Direct discipline issues to OKAN KARAHAN without asking for grade
     if (service === 'disiplin') {
       setDirectedStaff('OKAN KARAHAN');
@@ -322,14 +338,19 @@ const Index = () => {
     }
   };
   
-  const handleAttendanceFormSubmit = (name: string, grade: number) => {
-    setStudentName(name);
-    setSelectedGrade(grade);
-    setAppState('attendance-result');
-  };
-  
   const handleVoiceResult = async (text: string) => {
     try {
+      // Reset timeout when a voice command is received
+      if (voiceCommandTimeoutRef.current) {
+        clearTimeout(voiceCommandTimeoutRef.current);
+      }
+      
+      // Set a new timeout
+      voiceCommandTimeoutRef.current = setTimeout(() => {
+        console.log('Voice command timeout after processing - reloading page');
+        window.location.reload();
+      }, 20000);
+      
       // Visual feedback that voice is being processed
       toast({
         title: "Ses komutu işleniyor",
@@ -344,7 +365,7 @@ const Index = () => {
       if (appState === 'main-menu') {
         // Handle service selection based on voice
         if (result.intent) {
-          if (['mesem', 'usta-ogreticilik-belgesi', 'diploma', 'disiplin', 'ogrenci-alma-izni', '9-sinif-kayit', 'devamsizlik'].includes(result.intent)) {
+          if (['mesem', 'usta-ogreticilik-belgesi', 'diploma', 'disiplin', 'ogrenci-alma-izni', '9-sinif-kayit'].includes(result.intent)) {
             toast({
               title: "Seçim algılandı",
               description: `İşlem: ${result.intent}`,
@@ -383,7 +404,6 @@ const Index = () => {
       'disiplin': 'Disiplin',
       'ogrenci-alma-izni': 'Öğrenciyi Okuldan Alma İzni',
       '9-sinif-kayit': '9.sınıf Kayıt Yönlendirme',
-      'devamsizlik': 'Devamsızlık',
     };
     
     return serviceMap[selectedService] || selectedService;
@@ -461,18 +481,6 @@ const Index = () => {
                 
                 {appState === 'grade-selection' && (
                   <GradeSelection onSelection={handleGradeSelection} />
-                )}
-                
-                {appState === 'attendance-form' && (
-                  <AttendanceForm onSubmit={handleAttendanceFormSubmit} />
-                )}
-                
-                {appState === 'attendance-result' && studentName && selectedGrade && (
-                  <AttendanceResult 
-                    studentName={studentName}
-                    grade={selectedGrade}
-                    onTimeout={resetApp}
-                  />
                 )}
                 
                 {appState === 'staff-direction' && (

@@ -9,8 +9,11 @@ export const Webcam: React.FC = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
   const faceDetectionInterval = useRef<NodeJS.Timeout | null>(null);
+  const lastFaceDetectedTime = useRef<number | null>(null);
+  const consecutiveDetectionsRef = useRef(0);
+  const consecutiveNonDetectionsRef = useRef(0);
   
-  // Function to detect faces using the built-in browser API
+  // Function to detect faces using the built-in browser API with improved sensitivity
   const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     if (!video.videoWidth || !video.videoHeight) return;
     
@@ -21,39 +24,93 @@ export const Webcam: React.FC = () => {
       // Draw the current video frame to the canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // Simple face detection using color detection for skin tones
-      // This is a very basic approach and not as accurate as ML-based methods
+      // Enhanced face detection using color detection for skin tones with focus on center area
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
       
-      // Look for pixel patterns that might indicate a face
-      // This is a simplistic algorithm that looks for skin tone colors
-      let facePixels = 0;
-      const totalPixels = data.length / 4;
+      // Focus on the center area where a face is more likely to be
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const faceAreaRadius = Math.min(canvas.width, canvas.height) * 0.4; // Focus on 40% of central area
       
-      for (let i = 0; i < data.length; i += 16) { // Sample every 4th pixel for performance
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        
-        // Simple skin tone detection
-        if (r > 60 && g > 40 && b > 20 && 
-            r > g && r > b && 
-            r - g > 15 && 
-            r - b > 15) {
-          facePixels++;
+      let facePixels = 0;
+      let totalSampledPixels = 0;
+      
+      // Sample pixels more densely in the center area
+      for (let y = 0; y < canvas.height; y += 8) {
+        for (let x = 0; x < canvas.width; x += 8) {
+          // Calculate distance from center
+          const distFromCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+          
+          // Weight pixels closer to center more heavily
+          if (distFromCenter <= faceAreaRadius) {
+            const i = (y * canvas.width + x) * 4;
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Improved skin tone detection - more sensitive to common skin color ranges
+            if (r > 60 && g > 40 && b > 20 && 
+                r > g && r > b && 
+                Math.abs(r - g) > 15) {
+              facePixels++;
+            }
+            totalSampledPixels++;
+          }
         }
       }
       
-      // If more than 5% of pixels match our skin tone criteria, assume a face is present
-      const faceDetected = (facePixels / (totalPixels / 4)) > 0.05;
-      setFaceDetected(faceDetected);
+      // Calculate face detection ratio with higher weight for center area
+      const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
+      const currentFaceDetected = faceRatio > 0.08; // More sensitive threshold
       
-      // Dispatch custom event for face detection
-      const event = new CustomEvent('faceDetected', { 
-        detail: { detected: faceDetected } 
-      });
-      window.dispatchEvent(event);
+      // Implement hysteresis to avoid flickering
+      if (currentFaceDetected) {
+        consecutiveDetectionsRef.current++;
+        consecutiveNonDetectionsRef.current = 0;
+        
+        // Require several consecutive detections for stability
+        if (consecutiveDetectionsRef.current >= 3 && !faceDetected) {
+          setFaceDetected(true);
+          lastFaceDetectedTime.current = Date.now();
+          
+          // Dispatch custom event for face detection
+          const event = new CustomEvent('faceDetected', { 
+            detail: { detected: true } 
+          });
+          window.dispatchEvent(event);
+        }
+      } else {
+        consecutiveNonDetectionsRef.current++;
+        consecutiveDetectionsRef.current = 0;
+        
+        // Require several consecutive non-detections before declaring face lost
+        if (consecutiveNonDetectionsRef.current >= 10 && faceDetected) {
+          setFaceDetected(false);
+          
+          // Dispatch custom event for face lost
+          const event = new CustomEvent('faceDetected', { 
+            detail: { detected: false } 
+          });
+          window.dispatchEvent(event);
+        }
+      }
+      
+      // Check if face was detected recently but person may have walked away
+      if (faceDetected && lastFaceDetectedTime.current) {
+        const elapsed = Date.now() - lastFaceDetectedTime.current;
+        if (elapsed > 5000 && consecutiveNonDetectionsRef.current > 15) {
+          // Person likely left - reset face detection
+          setFaceDetected(false);
+          lastFaceDetectedTime.current = null;
+          
+          // Dispatch custom event for face lost
+          const event = new CustomEvent('faceDetected', { 
+            detail: { detected: false } 
+          });
+          window.dispatchEvent(event);
+        }
+      }
       
     } catch (error) {
       console.error('Error during face detection:', error);
@@ -97,10 +154,10 @@ export const Webcam: React.FC = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
-            // Start face detection loop
+            // Start face detection loop - more frequent checks for better responsiveness
             faceDetectionInterval.current = setInterval(() => {
               detectFaces(video, canvas);
-            }, 200); // Check for faces every 200ms
+            }, 150); // Check more frequently for better responsiveness
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
@@ -191,11 +248,11 @@ export const Webcam: React.FC = () => {
       />
       
       {errorMessage && (
-        <div className="absolute top-0 left-0 w-full bg-red-500 text-white p-2 text-center">
+        <div className="absolute top-0 left-0 w-full bg-red-500 dark:bg-red-700 text-white p-2 text-center">
           {errorMessage}
           <button 
             onClick={handleManualDetection}
-            className="ml-2 bg-white text-red-500 px-2 py-1 rounded text-sm"
+            className="ml-2 bg-white text-red-500 dark:bg-gray-800 dark:text-red-300 px-2 py-1 rounded text-sm"
             aria-label="Devam Et"
           >
             Devam Et
@@ -203,7 +260,7 @@ export const Webcam: React.FC = () => {
         </div>
       )}
       
-      <div className="text-blue-900 text-opacity-70 text-lg absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+      <div className="text-blue-900 dark:text-blue-300 text-opacity-70 dark:text-opacity-90 text-lg absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/60 dark:bg-gray-800/60 px-4 py-2 rounded-lg">
         {!cameraActive 
           ? "Kamera erişimi bekleniyor..." 
           : faceDetected 
@@ -213,7 +270,14 @@ export const Webcam: React.FC = () => {
       
       {faceDetected && cameraActive && (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
-          <div className="w-48 h-48 border-4 border-green-500 rounded-full animate-pulse opacity-70"></div>
+          <div className="w-48 h-48 border-4 border-green-500 dark:border-green-400 rounded-full animate-pulse opacity-70"></div>
+        </div>
+      )}
+      
+      {cameraActive && !faceDetected && (
+        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
+          <div className="w-64 h-64 border-2 border-dashed border-blue-500 dark:border-blue-400 rounded-full opacity-50"></div>
+          <div className="absolute w-24 h-24 border-2 border-yellow-500 dark:border-yellow-400 rounded-full opacity-70"></div>
         </div>
       )}
     </div>

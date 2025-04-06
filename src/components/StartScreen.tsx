@@ -1,8 +1,10 @@
 
 import React from 'react';
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Volume2Icon, Play, MoonIcon, SunIcon } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Landmark, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 
 interface StartScreenProps {
@@ -12,88 +14,86 @@ interface StartScreenProps {
 }
 
 const StartScreen: React.FC<StartScreenProps> = ({ onStart, audioEnabled, toggleAudio }) => {
-  const { theme, toggleTheme } = useTheme();
-  
+  const { theme, toggleTheme, isDarkMode } = useTheme();
+
   return (
-    <div className="h-screen w-full flex items-center justify-center bg-gradient-to-b from-blue-100 to-white dark:from-blue-950 dark:to-gray-900 p-4 transition-colors duration-300">
-      <Card className="w-full max-w-4xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-xl border border-blue-200 dark:border-blue-900">
-        <CardContent className="p-8">
-          <div className="text-center">
-            <div className="mb-6">
-              <h1 className="text-4xl md:text-5xl font-bold text-blue-800 dark:text-blue-300 mb-4">
-                Yıldırım Mesleki ve Teknik Anadolu Lisesi
-              </h1>
-              <h2 className="text-2xl md:text-3xl font-semibold text-blue-600 dark:text-blue-400">
-                Veli Yönlendirme Sistemi
-              </h2>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white dark:from-blue-950 dark:to-gray-900 transition-colors duration-300">
+      <div className="w-full max-w-4xl">
+        <Card className={`${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-xl`}>
+          <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg text-center py-8`}>
+            <div className="flex justify-center mb-4">
+              <Landmark size={48} className="text-white" />
             </div>
-            
-            <div className="my-10 flex justify-center">
-              <div className="w-28 h-28 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center border-4 border-blue-200 dark:border-blue-800 shadow-inner">
-                <img 
-                  src="/school-logo.png" 
-                  alt="Okul Logosu" 
-                  className="w-20 h-20 object-contain"
-                  onError={(e) => {
-                    e.currentTarget.src = "/placeholder.svg"; // Fallback to placeholder if logo not found
-                    e.currentTarget.onerror = null;
-                  }}
+            <CardTitle className="text-3xl font-bold">
+              Yıldırım Mesleki ve Teknik Anadolu Lisesi
+            </CardTitle>
+            <p className="text-xl mt-2 text-blue-100">Veli Yönlendirme Sistemi</p>
+          </CardHeader>
+          <CardContent className={`p-8 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+            <div className="text-center mb-8">
+              <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>Hoş Geldiniz</h2>
+              <p className="text-lg">
+                Veli yönlendirme sistemine hoş geldiniz. Sistemi başlatmak için aşağıdaki butona tıklayınız.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="dark-mode" 
+                  checked={isDarkMode} 
+                  onCheckedChange={toggleTheme}
+                  className="data-[state=checked]:bg-blue-600"
                 />
+                <Label htmlFor="dark-mode" className="flex items-center cursor-pointer">
+                  {isDarkMode ? (
+                    <Moon size={20} className="mr-2 text-blue-300" />
+                  ) : (
+                    <Sun size={20} className="mr-2 text-amber-500" />
+                  )}
+                  {isDarkMode ? 'Koyu Mod' : 'Aydınlık Mod'}
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="audio-toggle" 
+                  checked={audioEnabled} 
+                  onCheckedChange={toggleAudio}
+                  className="data-[state=checked]:bg-green-600"
+                />
+                <Label htmlFor="audio-toggle" className="flex items-center cursor-pointer">
+                  {audioEnabled ? (
+                    <Volume2 size={20} className="mr-2 text-green-500" />
+                  ) : (
+                    <VolumeX size={20} className="mr-2 text-gray-500" />
+                  )}
+                  {audioEnabled ? 'Sesli Yönlendirme Açık' : 'Sesli Yönlendirme Kapalı'}
+                </Label>
               </div>
             </div>
-            
-            <p className="text-lg text-gray-700 dark:text-gray-300 mb-8">
-              Veli yönlendirme sistemine hoş geldiniz. Sistemi başlatmak için aşağıdaki butona tıklayınız.
-            </p>
-            
-            <div className="flex flex-col items-center space-y-6">
-              <Button 
-                onClick={() => {
-                  onStart();
-                }}
-                className="px-8 py-6 text-xl bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-all shadow-lg rounded-full flex items-center"
+
+            <div className="flex justify-center mt-6">
+              <Button
+                onClick={onStart}
+                size="lg"
+                className={`text-xl py-6 px-8 ${
+                  isDarkMode 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
-                <Play size={24} className="mr-2" />
                 Sistemi Başlat
               </Button>
-              
-              <div className="flex space-x-4">
-                <Button
-                  variant="outline"
-                  onClick={toggleAudio}
-                  className="flex items-center space-x-2 border border-blue-300 dark:border-blue-700 dark:text-gray-200"
-                >
-                  <Volume2Icon size={18} className={audioEnabled ? "text-blue-700 dark:text-blue-400" : "text-gray-400"} />
-                  <span>{audioEnabled ? "Sesli Yönlendirme Açık" : "Sesli Yönlendirme Kapalı"}</span>
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={toggleTheme}
-                  className="flex items-center space-x-2 border border-blue-300 dark:border-blue-700 dark:text-gray-200"
-                >
-                  {theme === 'light' ? (
-                    <>
-                      <MoonIcon size={18} className="text-blue-700 dark:text-blue-400" />
-                      <span>Karanlık Mod</span>
-                    </>
-                  ) : (
-                    <>
-                      <SunIcon size={18} className="text-yellow-500" />
-                      <span>Aydınlık Mod</span>
-                    </>
-                  )}
-                </Button>
-              </div>
             </div>
             
-            <div className="mt-10 text-sm text-gray-500 dark:text-gray-400">
-              <p>© 2025 Yıldırım Mesleki ve Teknik Anadolu Lisesi</p>
+            <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
               <p>Bu sistem görme ve işitme engelli kullanıcılar için erişilebilirlik desteklerine sahiptir</p>
+              <p className="mt-2">© 2025 Yıldırım Mesleki ve Teknik Anadolu Lisesi</p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
