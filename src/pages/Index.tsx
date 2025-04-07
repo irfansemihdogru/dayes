@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FaceRecognition from '@/components/FaceRecognition';
 import MainMenu from '@/components/MainMenu';
@@ -23,7 +22,6 @@ interface StaffMapping {
   [key: string]: string;
 }
 
-// Room information mapping
 interface StaffRoomInfo {
   name: string;
   floor: number;
@@ -51,7 +49,7 @@ const serviceToStaff: StaffMapping = {
   'mesem': 'YENER HANCI',
   'usta-ogreticilik-belgesi': 'YENER HANCI',
   'diploma': 'YENER HANCI',
-  'disiplin': 'OKAN KARAHAN', // Direct all discipline issues to OKAN KARAHAN
+  'disiplin': 'OKAN KARAHAN',
   '9-sinif-kayit': 'ERDEM ÜÇER',
 };
 
@@ -70,23 +68,19 @@ const Index = () => {
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Initialize speech synthesis on app load
   useEffect(() => {
     initSpeechSynthesis().then(() => {
       console.log('Speech synthesis initialized');
     });
   }, []);
   
-  // Helper function to check if speech synthesis is speaking
   const isSpeaking = () => {
     return window.speechSynthesis && window.speechSynthesis.speaking;
   };
   
-  // Welcome message when app loads
   useEffect(() => {
     if (!appInitialized.current && appState === 'face-recognition') {
       appInitialized.current = true;
-      // Small delay to ensure the app has rendered
       setTimeout(() => {
         if (audioEnabled) {
           setWelcomeMessagePlaying(true);
@@ -96,16 +90,12 @@ const Index = () => {
     }
   }, [appState, audioEnabled]);
   
-  // Set a timeout for voice commands - reset if no voice command is detected within 20 seconds
   useEffect(() => {
-    // Only apply timeout in menu and grade selection states when listening is active
     if ((appState === 'main-menu' || appState === 'grade-selection') && isListening) {
-      // Clear any existing timeout
       if (voiceCommandTimeoutRef.current) {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
       
-      // Set new timeout
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout - reloading page');
         toast({
@@ -116,7 +106,7 @@ const Index = () => {
         setTimeout(() => {
           window.location.reload();
         }, 2000);
-      }, 20000); // 20 seconds timeout
+      }, 20000);
       
       return () => {
         if (voiceCommandTimeoutRef.current) {
@@ -146,13 +136,11 @@ const Index = () => {
     });
   };
   
-  // Handle face detection to start app
   const handleFaceDetected = () => {
     if (appState === 'face-recognition') {
       setTimeout(() => {
         setAppState('main-menu');
         
-        // Only start listening if not currently speaking
         if (!isSpeaking()) {
           setIsListening(true);
         }
@@ -175,11 +163,9 @@ const Index = () => {
     }
   };
   
-  // Handle ESC key to reset the app with page reload
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // Reload the page instead of just resetting state
         window.location.reload();
       }
     };
@@ -188,7 +174,6 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
   
-  // Set appropriate voice prompts based on app state
   useEffect(() => {
     // Always turn off listening when changing states
     setIsListening(false);
@@ -258,13 +243,11 @@ const Index = () => {
   }, [appState, audioEnabled]);
   
   const resetApp = () => {
-    // Stop any ongoing speech
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       isSpeakingRef.current = false;
     }
     
-    // Reload the page instead of just resetting state
     window.location.reload();
   };
   
@@ -273,7 +256,6 @@ const Index = () => {
   };
   
   const toggleAudio = () => {
-    // Stop any ongoing speech when turning off audio
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       isSpeakingRef.current = false;
@@ -281,8 +263,7 @@ const Index = () => {
     
     setAudioEnabled(!audioEnabled);
     
-    // Notify user about audio state change
-    if (!audioEnabled) { // Turning on
+    if (!audioEnabled) {
       setTimeout(() => {
         speakText('Sesli yönlendirme etkinleştirildi.');
       }, 300);
@@ -292,7 +273,6 @@ const Index = () => {
   const handleServiceSelection = (service: string) => {
     setSelectedService(service);
     
-    // Direct discipline issues to OKAN KARAHAN without asking for grade
     if (service === 'disiplin') {
       setDirectedStaff('OKAN KARAHAN');
       setAppState('staff-direction');
@@ -320,12 +300,12 @@ const Index = () => {
   
   const handleVoiceResult = async (text: string) => {
     try {
-      // Reset timeout when a voice command is received
       if (voiceCommandTimeoutRef.current) {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
       
-      // Set a new timeout
+      setIsListening(false);
+      
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout after processing - reloading page');
         toast({
@@ -338,10 +318,8 @@ const Index = () => {
         }, 2000);
       }, 20000);
       
-      // Visual feedback that voice is being processed
       toast({
-        title: "Ses komutu işleniyor",
-        description: text,
+        title: "İşleniyor",
         duration: 2000
       });
       
@@ -350,26 +328,14 @@ const Index = () => {
       console.log("Gemini API result:", result);
       
       if (appState === 'main-menu') {
-        // Handle service selection based on voice
         if (result.intent) {
           if (['mesem', 'usta-ogreticilik-belgesi', 'diploma', 'disiplin', 'ogrenci-alma-izni', '9-sinif-kayit'].includes(result.intent)) {
-            toast({
-              title: "Seçim algılandı",
-              description: `İşlem: ${result.intent}`,
-              duration: 2000
-            });
             handleServiceSelection(result.intent);
           }
         }
       } else if (appState === 'grade-selection' && result.grade) {
-        // Handle grade selection
         const grade = parseInt(result.grade);
         if ([9, 10, 11, 12].includes(grade)) {
-          toast({
-            title: "Sınıf algılandı",
-            description: `${grade}. Sınıf`,
-            duration: 2000
-          });
           handleGradeSelection(grade);
         }
       }
@@ -380,6 +346,12 @@ const Index = () => {
         description: "Ses komutunuz işlenirken bir hata oluştu.",
         variant: "destructive"
       });
+      
+      setTimeout(() => {
+        if ((appState === 'main-menu' || appState === 'grade-selection') && !isSpeaking()) {
+          setIsListening(true);
+        }
+      }, 2000);
     }
   };
   
@@ -405,7 +377,6 @@ const Index = () => {
     };
   };
 
-  // Render the appropriate component based on app state
   const renderContent = () => {
     switch (appState) {
       case 'start-screen':
@@ -481,12 +452,12 @@ const Index = () => {
                 )}
               </div>
               
-              {/* Show voice recognition UI in states that need it */}
               {(appState === 'main-menu' || appState === 'grade-selection') && isListening && (
                 <div className="mt-4 max-w-4xl mx-auto">
                   <VoiceRecognition 
                     isListening={isListening} 
                     onResult={handleVoiceResult}
+                    onListeningEnd={() => setIsListening(false)}
                     prompt={voicePrompt}
                   />
                 </div>
@@ -502,7 +473,6 @@ const Index = () => {
               </p>
             </div>
             
-            {/* Konuşma/Dinleme Durumu Göstergesi */}
             {isSpeakingRef.current && (
               <div className="fixed bottom-4 right-4 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center" aria-live="polite">
                 <Volume2Icon size={16} className="mr-2" />

@@ -14,14 +14,14 @@ export const getBestTurkishVoice = (): SpeechSynthesisVoice | null => {
     voicesLoaded = true;
   }
   
-  // First try to find a Turkish voice
+  // First try to find a Turkish voice with more specific matching for better accuracy
   let turkishVoice = availableVoices.find(voice => 
-    voice.lang.toLowerCase().includes('tr-tr') || 
+    voice.lang === 'tr-TR' || 
     voice.name.toLowerCase().includes('türk') ||
     voice.name.toLowerCase().includes('turkish')
   );
   
-  // If no Turkish voice is found, try to find any voice that supports Turkish
+  // If no exact match, try more lenient matching
   if (!turkishVoice) {
     turkishVoice = availableVoices.find(voice => 
       voice.lang.toLowerCase().includes('tr')
@@ -46,18 +46,29 @@ export const initSpeechSynthesis = (): Promise<void> => {
       return;
     }
     
-    // Some browsers (like Chrome) load voices asynchronously
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        availableVoices = window.speechSynthesis.getVoices();
-        voicesLoaded = true;
-        resolve();
-      };
-    } else {
-      // For browsers that load voices synchronously
+    // Handle browser-specific voice loading behavior
+    const loadVoices = () => {
       availableVoices = window.speechSynthesis.getVoices();
       voicesLoaded = true;
+      
+      // Log available voices for debugging
+      console.log('Available voices loaded:', availableVoices.length);
+      console.log('Turkish voices:', availableVoices.filter(v => 
+        v.lang === 'tr-TR' || 
+        v.lang.includes('tr') || 
+        v.name.toLowerCase().includes('türk') || 
+        v.name.toLowerCase().includes('turkish')
+      ).map(v => `${v.name} (${v.lang})`));
+      
       resolve();
+    };
+    
+    // Chrome loads voices asynchronously
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    } else {
+      // For browsers that load voices synchronously (like Firefox)
+      setTimeout(loadVoices, 100);
     }
     
     // Force a getVoices call to trigger loading
@@ -79,6 +90,23 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
   const turkishVoice = getBestTurkishVoice();
   if (turkishVoice) {
     utterance.voice = turkishVoice;
+    console.log(`Using voice: ${turkishVoice.name} (${turkishVoice.lang})`);
+  } else {
+    console.warn('No suitable voice found for Turkish');
+  }
+};
+
+// Ensure speech synthesis is properly terminated between utterances
+const ensureSpeechReset = () => {
+  // Cancel any ongoing speech
+  try {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      // Small pause to ensure clean slate
+      setTimeout(() => {}, 50);
+    }
+  } catch (err) {
+    console.error('Error resetting speech synthesis:', err);
   }
 };
 
@@ -95,11 +123,12 @@ export const speakText = (
 ): void => {
   if (!('speechSynthesis' in window)) {
     console.error('Speech synthesis not supported');
+    options.onEnd?.();
     return;
   }
   
-  // Cancel any ongoing speech
-  window.speechSynthesis.cancel();
+  // Ensure clean state before starting
+  ensureSpeechReset();
   
   const utterance = new SpeechSynthesisUtterance(text);
   
@@ -116,22 +145,26 @@ export const speakText = (
     utterance.onstart = options.onStart;
   }
   
+  // More reliable end event handling
   if (options.onEnd) {
+    // Multiple event handlers to ensure onEnd is called
     utterance.onend = options.onEnd;
-    
-    // Safari sometimes doesn't fire onend events correctly
-    // So we set a timeout as a fallback
-    const estimatedDuration = (text.length * 50) + 1000; // ~50ms per character + buffer
-    setTimeout(() => {
+    utterance.onerror = () => {
+      console.error('Speech synthesis error');
       options.onEnd?.();
+    };
+    
+    // Safari and some mobile browsers sometimes don't fire onend events correctly
+    // So we set a timeout as a fallback
+    const estimatedDuration = (text.length * 60) + 1000; // ~60ms per character + buffer
+    setTimeout(() => {
+      // Only call onEnd if speech synthesis is not currently speaking
+      // This prevents the callback from being called twice
+      if (!window.speechSynthesis.speaking) {
+        options.onEnd?.();
+      }
     }, estimatedDuration);
   }
-  
-  // Handle errors
-  utterance.onerror = (event) => {
-    console.error('Speech synthesis error:', event);
-    options.onEnd?.();
-  };
   
   // Speak the text
   window.speechSynthesis.speak(utterance);
@@ -147,7 +180,7 @@ export const speakText = (
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
-  }, 5000);
+  }, 2000); // Check more frequently (2s instead of 5s)
 };
 
 // Initialize immediately

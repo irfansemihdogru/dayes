@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -85,7 +84,13 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         if (result.isFinal) {
           setProcessingVoice(true);
           onResult(transcriptValue);
+          
+          // Auto-disable microphone after receiving a command
           setTimeout(() => {
+            stopRecognition();
+            if (onListeningEnd) {
+              onListeningEnd();
+            }
             setProcessingVoice(false);
             setTranscript('');
           }, 1000);
@@ -267,6 +272,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       console.log('Manual input submitted:', manualInput);
       onResult(manualInput);
       setManualInput('');
+      
+      // Auto-disable microphone after manual input
+      if (onListeningEnd) {
+        onListeningEnd();
+      }
     }
   };
 

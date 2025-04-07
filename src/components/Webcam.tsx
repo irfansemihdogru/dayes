@@ -13,7 +13,7 @@ export const Webcam: React.FC = () => {
   const consecutiveDetectionsRef = useRef(0);
   const consecutiveNonDetectionsRef = useRef(0);
   
-  // Enhanced face detection using image processing
+  // Enhanced face detection using image processing - optimized for speed
   const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     if (!video.videoWidth || !video.videoHeight) return;
     
@@ -41,10 +41,9 @@ export const Webcam: React.FC = () => {
       let facePixels = 0;
       let totalSampledPixels = 0;
       
-      // Improve face detection by focusing on close-up faces only
-      // Sample pixels more densely in the center area
-      for (let y = 0; y < imageData.height; y += 4) {  // Sample every 4th pixel for performance
-        for (let x = 0; x < imageData.width; x += 4) {
+      // Improve performance by sampling fewer pixels (every 6th pixel instead of 4th)
+      for (let y = 0; y < imageData.height; y += 6) {
+        for (let x = 0; x < imageData.width; x += 6) {
           // Calculate distance from center of the sampled area
           const distFromCenter = Math.sqrt(Math.pow(x - imageData.width/2, 2) + Math.pow(y - imageData.height/2, 2));
           
@@ -55,11 +54,8 @@ export const Webcam: React.FC = () => {
             const g = data[i + 1];
             const b = data[i + 2];
             
-            // Improved skin tone detection - detect typical face colors 
-            // and make sure the area has enough detail to be a face
-            if (r > 60 && g > 40 && b > 20 && 
-                r > g && r > b && 
-                Math.abs(r - g) > 15) {
+            // Simplified skin tone detection for better performance
+            if (r > 60 && g > 40 && b > 20 && r > g) {
               facePixels++;
             }
             totalSampledPixels++;
@@ -70,16 +66,16 @@ export const Webcam: React.FC = () => {
       // Calculate face detection ratio focused on close-up faces
       const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
       
-      // More sensitive threshold for close-up face detection
-      const currentFaceDetected = faceRatio > 0.10; 
+      // Lower threshold for faster detection (0.08 instead of 0.10)
+      const currentFaceDetected = faceRatio > 0.08; 
       
-      // Hysteresis to avoid flickering and ensure reliable detection
+      // Make detection more responsive by requiring fewer consecutive detections
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
         consecutiveNonDetectionsRef.current = 0;
         
-        // Require several consecutive detections for stability
-        if (consecutiveDetectionsRef.current >= 3 && !faceDetected) {
+        // Only need 2 consecutive detections for faster response
+        if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
           setFaceDetected(true);
           lastFaceDetectedTime.current = Date.now();
           
@@ -94,7 +90,7 @@ export const Webcam: React.FC = () => {
         consecutiveDetectionsRef.current = 0;
         
         // Require more consecutive non-detections before declaring face lost
-        if (consecutiveNonDetectionsRef.current >= 6 && faceDetected) {
+        if (consecutiveNonDetectionsRef.current >= 5 && faceDetected) {
           setFaceDetected(false);
           
           // Dispatch custom event for face lost
@@ -163,10 +159,10 @@ export const Webcam: React.FC = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
-            // Start face detection with higher frequency for better responsiveness
+            // Start face detection with higher frequency for faster responsiveness
             faceDetectionInterval.current = setInterval(() => {
               detectFaces(video, canvas);
-            }, 100); 
+            }, 50); // 50ms (was 100ms) - doubled the sample rate for faster detection
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
