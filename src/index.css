@@ -83,6 +83,24 @@
     focus:px-4 focus:py-2 focus:bg-white dark:focus:bg-gray-800 focus:text-blue-700 
     dark:focus:text-blue-300 focus:rounded focus:shadow-lg;
   }
+  
+  /* Improved text contrast in dark mode */
+  .dark {
+    --text-primary: 210 40% 98%;
+    --text-secondary: 215 20.2% 65.1%; 
+    --text-muted: 215 16% 47%;
+  }
+  
+  /* Higher contrast colors for better accessibility */
+  .high-contrast {
+    --primary: 210 100% 45%;
+    --accent: 210 100% 35%;
+  }
+  
+  .dark.high-contrast {
+    --primary: 210 100% 70%;
+    --accent: 210 100% 60%;
+  }
 }
 
 .fade-in {
@@ -145,3 +163,37 @@ select:focus-visible,
 textarea:focus-visible {
   @apply outline-2 outline-blue-600 dark:outline-blue-400 outline-offset-2 ring-2 ring-blue-500;
 }
+
+/* Center all containers in the app */
+.max-w-4xl, .max-w-5xl {
+  @apply mx-auto;
+}
+
+/* Ensure cards and content areas have proper spacing and alignment */
+.card, .card-content {
+  @apply w-full;
+}
+
+/* Improved dark mode styles for cards */
+.dark .card {
+  @apply bg-gray-800 border-gray-700;
+}
+
+/* Improved accessibility for state indicators */
+.status-indicator {
+  @apply fixed bottom-4 right-4 px-4 py-2 rounded-full shadow-lg flex items-center;
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+

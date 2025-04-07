@@ -3,6 +3,7 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTheme } from '@/context/ThemeContext';
+import { speakText } from '@/utils/speechUtils';
 
 interface MenuItem {
   id: string;
@@ -25,8 +26,20 @@ const menuItems: MenuItem[] = [
 const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
   const { isDarkMode } = useTheme();
   
+  React.useEffect(() => {
+    // Announce the page for accessibility when it loads
+    const menuText = "Ana menü. Yapmak istediğiniz işlemi seçiniz veya söyleyiniz. " + 
+      menuItems.map(item => item.name).join(", ");
+      
+    setTimeout(() => {
+      speakText(menuText, {
+        rate: 0.9
+      });
+    }, 500);
+  }, []);
+  
   return (
-    <Card className={`w-full max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
+    <Card className={`w-full mx-auto max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
       <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg`}>
         <CardTitle className="text-2xl text-center">Hoşgeldiniz! Yapmak İstediğiniz İşlemi Kısaca Söyleyiniz</CardTitle>
       </CardHeader>
@@ -40,8 +53,13 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
                 isDarkMode 
                   ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
                   : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
-              } transition-all`}
-              onClick={() => onSelection(item.id)}
+              } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
+              onClick={() => {
+                // Announce selection for accessibility
+                speakText(`${item.name} seçildi`, {
+                  onEnd: () => onSelection(item.id) 
+                });
+              }}
               aria-label={`${item.name} işlemini seçin`}
             >
               {item.name}

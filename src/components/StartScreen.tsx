@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Landmark, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
+import { Moon, Sun, Volume2, VolumeX, School, Landmark } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 
 interface StartScreenProps {
@@ -22,18 +22,16 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, audioEnabled, toggle
         <Card className={`${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-xl`}>
           <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg text-center py-8`}>
             <div className="flex justify-center mb-4">
-              <img 
-                src="https://i.hizliresim.com/86akbt6.png" 
-                alt="Yıldırım Mesleki ve Teknik Anadolu Lisesi Logo" 
-                className="h-24 w-auto"
-                aria-label="Okul logosu" 
-              />
+              <div className="flex items-center justify-center p-3 bg-white dark:bg-gray-700 rounded-full h-24 w-24 shadow-lg">
+                <School className="h-16 w-16 text-blue-600 dark:text-blue-400" aria-label="Okul ikonu" />
+              </div>
             </div>
             <CardTitle className="text-3xl font-bold">
               Yıldırım Mesleki ve Teknik Anadolu Lisesi
             </CardTitle>
             <p className="text-xl mt-2 text-blue-100">Veli Yönlendirme Sistemi</p>
           </CardHeader>
+          
           <CardContent className={`p-8 ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
             <div className="text-center mb-8">
               <h2 className={`text-2xl font-bold mb-2 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>Hoş Geldiniz</h2>
@@ -84,9 +82,9 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, audioEnabled, toggle
                 size="lg"
                 className={`text-xl py-6 px-8 ${
                   isDarkMode 
-                    ? 'bg-blue-600 hover:bg-blue-700' 
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                } focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
               >
                 Sistemi Başlat
               </Button>

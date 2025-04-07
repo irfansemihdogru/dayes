@@ -8,8 +8,9 @@ import VoiceRecognition from '@/components/VoiceRecognition';
 import StartScreen from '@/components/StartScreen';
 import { processVoiceCommand } from '@/utils/geminiApi';
 import { useToast } from '@/hooks/use-toast';
-import { Volume2Icon, VolumeXIcon } from 'lucide-react';
+import { Volume2Icon, VolumeXIcon, School } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
+import { speakText, initSpeechSynthesis } from '@/utils/speechUtils';
 
 type AppState = 
   | 'start-screen'
@@ -69,6 +70,13 @@ const Index = () => {
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Initialize speech synthesis on app load
+  useEffect(() => {
+    initSpeechSynthesis().then(() => {
+      console.log('Speech synthesis initialized');
+    });
+  }, []);
+  
   // Helper function to check if speech synthesis is speaking
   const isSpeaking = () => {
     return window.speechSynthesis && window.speechSynthesis.speaking;
@@ -100,7 +108,14 @@ const Index = () => {
       // Set new timeout
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout - reloading page');
-        window.location.reload();
+        toast({
+          title: "Zaman aşımı",
+          description: "Uzun süre işlem yapılmadı. Sistem yenileniyor.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       }, 20000); // 20 seconds timeout
       
       return () => {
@@ -109,92 +124,26 @@ const Index = () => {
         }
       };
     }
-  }, [appState, isListening]);
+  }, [appState, isListening, toast]);
   
   const speakWelcomeMessage = () => {
-    if (!('speechSynthesis' in window)) {
+    if (!audioEnabled) {
       setWelcomeMessagePlaying(false);
       return;
     }
     
-    // Cancel any previous speech
-    window.speechSynthesis.cancel();
-    
     const welcomeText = "Yıldırım Mesleki ve Teknik Anadolu Lisesi Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
-    const speech = new SpeechSynthesisUtterance(welcomeText);
-    speech.lang = 'tr-TR';
-    speech.rate = 0.9;
-    speech.pitch = 1;
-    speech.volume = 1;
     
-    // Set speaking state
-    isSpeakingRef.current = true;
-    
-    // When speech ends, mark welcome message as complete
-    speech.onend = () => {
-      console.log('Welcome message finished playing');
-      setWelcomeMessagePlaying(false);
-      isSpeakingRef.current = false;
-    };
-    
-    // Fallback in case onend doesn't trigger
-    speech.onerror = () => {
-      console.log('Welcome message error or interrupted');
-      setWelcomeMessagePlaying(false);
-      isSpeakingRef.current = false;
-    };
-    
-    // Estimate speech duration for fallback timer
-    const estimatedDuration = welcomeText.length * 50; // ~50ms per character
-    setTimeout(() => {
-      setWelcomeMessagePlaying(false);
-      isSpeakingRef.current = false;
-    }, estimatedDuration + 1000);
-    
-    window.speechSynthesis.speak(speech);
-  };
-  
-  const speakText = (text: string) => {
-    if (!audioEnabled || !('speechSynthesis' in window)) return;
-    
-    // Disable microphone while speaking
-    setIsListening(false);
-    isSpeakingRef.current = true;
-    
-    // Cancel any previous speech
-    window.speechSynthesis.cancel();
-    
-    const speech = new SpeechSynthesisUtterance(text);
-    speech.lang = 'tr-TR';
-    speech.rate = 0.9;
-    speech.pitch = 1;
-    speech.volume = 1;
-    
-    // Re-enable microphone when speech ends
-    speech.onend = () => {
-      isSpeakingRef.current = false;
-      if (appState === 'main-menu' || appState === 'grade-selection') {
-        setTimeout(() => setIsListening(true), 300);
+    speakText(welcomeText, {
+      onStart: () => {
+        isSpeakingRef.current = true;
+        setWelcomeMessagePlaying(true);
+      },
+      onEnd: () => {
+        isSpeakingRef.current = false;
+        setWelcomeMessagePlaying(false);
       }
-    };
-    
-    speech.onerror = () => {
-      isSpeakingRef.current = false;
-      if (appState === 'main-menu' || appState === 'grade-selection') {
-        setTimeout(() => setIsListening(true), 300);
-      }
-    };
-    
-    // Fallback in case onend doesn't trigger
-    const estimatedDuration = text.length * 50; // ~50ms per character
-    setTimeout(() => {
-      isSpeakingRef.current = false;
-      if (appState === 'main-menu' || appState === 'grade-selection') {
-        setIsListening(true);
-      }
-    }, estimatedDuration + 1000); // Add a small buffer
-    
-    window.speechSynthesis.speak(speech);
+    });
   };
   
   // Handle face detection to start app
@@ -210,7 +159,18 @@ const Index = () => {
         
         const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
         setVoicePrompt(prompt);
-        speakText(prompt);
+        
+        if (audioEnabled) {
+          speakText(prompt, {
+            onStart: () => {
+              isSpeakingRef.current = true;
+            },
+            onEnd: () => {
+              isSpeakingRef.current = false;
+              setIsListening(true);
+            }
+          });
+        }
       }, 1000);
     }
   };
@@ -255,7 +215,17 @@ const Index = () => {
           if (!isSpeaking()) {
             setTimeout(() => setIsListening(true), 300);
           }
-          if (audioEnabled) speakText(prompt);
+          if (audioEnabled) {
+            speakText(prompt, {
+              onStart: () => {
+                isSpeakingRef.current = true;
+              },
+              onEnd: () => {
+                isSpeakingRef.current = false;
+                setIsListening(true);
+              }
+            });
+          }
           break;
         }
         case 'grade-selection': {
@@ -265,7 +235,17 @@ const Index = () => {
           if (!isSpeaking()) {
             setTimeout(() => setIsListening(true), 300);
           }
-          if (audioEnabled) speakText(prompt);
+          if (audioEnabled) {
+            speakText(prompt, {
+              onStart: () => {
+                isSpeakingRef.current = true;
+              },
+              onEnd: () => {
+                isSpeakingRef.current = false;
+                setIsListening(true);
+              }
+            });
+          }
           break;
         }
         case 'staff-direction':
@@ -348,7 +328,14 @@ const Index = () => {
       // Set a new timeout
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout after processing - reloading page');
-        window.location.reload();
+        toast({
+          title: "Zaman aşımı",
+          description: "Uzun süre işlem yapılmadı. Sistem yenileniyor.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
       }, 20000);
       
       // Visual feedback that voice is being processed
@@ -431,7 +418,7 @@ const Index = () => {
       case 'face-recognition':
         return (
           <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white dark:from-blue-950 dark:to-gray-900 transition-colors duration-300">
-            <div className="w-full max-w-5xl mb-8">
+            <div className="w-full max-w-5xl mx-auto">
               <div className="text-center mb-4 flex items-center justify-center">
                 <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
                 <button
@@ -446,7 +433,7 @@ const Index = () => {
                 </button>
               </div>
               
-              <div className="transition-all duration-500 fade-in">
+              <div className="transition-all duration-500 fade-in mx-auto max-w-4xl">
                 <FaceRecognition 
                   onDetected={handleFaceDetected}
                   isWelcomeMessagePlaying={welcomeMessagePlaying}
@@ -459,8 +446,9 @@ const Index = () => {
       default:
         return (
           <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white dark:from-blue-950 dark:to-gray-900 transition-colors duration-300">
-            <div className="w-full max-w-5xl mb-8">
+            <div className="w-full max-w-5xl mx-auto">
               <div className="text-center mb-4 flex items-center justify-center">
+                <School className="mr-3 text-blue-700 dark:text-blue-400" size={32} />
                 <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
                 <button
                   onClick={toggleAudio}
@@ -474,7 +462,7 @@ const Index = () => {
                 </button>
               </div>
               
-              <div className="transition-all duration-500 fade-in">
+              <div className="transition-all duration-500 fade-in mx-auto">
                 {appState === 'main-menu' && (
                   <MainMenu onSelection={handleServiceSelection} />
                 )}
@@ -495,7 +483,7 @@ const Index = () => {
               
               {/* Show voice recognition UI in states that need it */}
               {(appState === 'main-menu' || appState === 'grade-selection') && isListening && (
-                <div className="mt-4">
+                <div className="mt-4 max-w-4xl mx-auto">
                   <VoiceRecognition 
                     isListening={isListening} 
                     onResult={handleVoiceResult}
@@ -516,14 +504,14 @@ const Index = () => {
             
             {/* Konuşma/Dinleme Durumu Göstergesi */}
             {isSpeakingRef.current && (
-              <div className="fixed bottom-4 right-4 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center">
+              <div className="fixed bottom-4 right-4 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center" aria-live="polite">
                 <Volume2Icon size={16} className="mr-2" />
                 <span>Sistem konuşuyor...</span>
               </div>
             )}
             
             {isListening && !isSpeakingRef.current && (
-              <div className="fixed bottom-4 right-4 bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded-full shadow-lg flex items-center">
+              <div className="fixed bottom-4 right-4 bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded-full shadow-lg flex items-center" aria-live="polite">
                 <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
                 <span>Dinleniyor...</span>
               </div>
