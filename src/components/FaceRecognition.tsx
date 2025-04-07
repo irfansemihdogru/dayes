@@ -43,31 +43,24 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
   
   // Listen for the faceDetected event from the Webcam component
   const handleFaceDetection = (detected: boolean) => {
-    console.log('Face detection status:', detected);
-    
     if (!detecting || !cameraActive) return;
     
     if (detected) {
       // Increment detection count to make the detection more reliable
       setDetectedCount(prev => {
         const newCount = prev + 1;
-        console.log('Face detection count:', newCount);
         
-        // After 3 consecutive detections, mark face as detected
+        // After consecutive detections, mark face as detected
         if (newCount >= 3) {
-          console.log('Face reliably detected');
           faceDetectedRef.current = true;
           
           // Only call onDetected if welcome message is not playing
           if (!isWelcomeMessagePlaying) {
-            console.log('Welcome message finished, triggering onDetected');
             setDetecting(false);
             if (detectionTimeoutRef.current) {
               clearTimeout(detectionTimeoutRef.current);
             }
             onDetected();
-          } else {
-            console.log('Welcome message is still playing, waiting to proceed');
           }
           return newCount;
         }
@@ -82,7 +75,6 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
   // Check if welcome message has finished playing and we have already detected a face
   useEffect(() => {
     if (faceDetectedRef.current && !isWelcomeMessagePlaying && detecting) {
-      console.log('Welcome message finished and face already detected, triggering onDetected');
       setDetecting(false);
       if (detectionTimeoutRef.current) {
         clearTimeout(detectionTimeoutRef.current);
@@ -104,9 +96,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     
     // Set a fallback timeout in case face detection doesn't work
     detectionTimeoutRef.current = setTimeout(() => {
-      console.log('Face detection timeout, checking camera status before proceeding');
       if (detecting && cameraActive) {
-        console.log('Camera is active, forcing onDetected after timeout');
         setDetecting(false);
         faceDetectedRef.current = true;
         
@@ -114,8 +104,6 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
         if (!isWelcomeMessagePlaying) {
           onDetected();
         }
-      } else {
-        console.log('Camera inactive, not proceeding with timeout');
       }
     }, 15000); // 15 seconds timeout
     
@@ -128,7 +116,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
   }, [detecting, onDetected, cameraActive, isWelcomeMessagePlaying]);
 
   return (
-    <Card className={`w-full max-w-5xl ${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
+    <Card className={`w-full max-w-5xl mx-auto ${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
       <CardContent className="p-6">
         <div className="text-center">
           <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-blue-300' : 'text-blue-800'} mb-4`}>Yüz Tanıma</h2>

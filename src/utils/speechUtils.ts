@@ -28,6 +28,12 @@ export const getBestTurkishVoice = (): SpeechSynthesisVoice | null => {
     );
   }
   
+  // If still no voice found, use the first available voice
+  if (!turkishVoice && availableVoices.length > 0) {
+    console.warn('No Turkish voice found, using default voice');
+    turkishVoice = availableVoices[0];
+  }
+  
   return turkishVoice || null;
 };
 
@@ -59,6 +65,23 @@ export const initSpeechSynthesis = (): Promise<void> => {
   });
 };
 
+// Force browser to use same voice settings across platforms
+const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void => {
+  // Always set Turkish language
+  utterance.lang = 'tr-TR';
+  
+  // Consistent speech parameters
+  utterance.rate = 0.95; // Slightly slower than default for better clarity
+  utterance.pitch = 1;   // Normal pitch
+  utterance.volume = 1;  // Full volume
+  
+  // Try to use a Turkish voice if available
+  const turkishVoice = getBestTurkishVoice();
+  if (turkishVoice) {
+    utterance.voice = turkishVoice;
+  }
+};
+
 // Unified speech function that ensures consistent behavior across browsers
 export const speakText = (
   text: string, 
@@ -79,16 +102,14 @@ export const speakText = (
   window.speechSynthesis.cancel();
   
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'tr-TR';
-  utterance.rate = options.rate || 0.95;
-  utterance.pitch = options.pitch || 1;
-  utterance.volume = options.volume || 1;
   
-  // Try to use a Turkish voice if available
-  const turkishVoice = getBestTurkishVoice();
-  if (turkishVoice) {
-    utterance.voice = turkishVoice;
-  }
+  // Apply consistent voice settings
+  forceConsistentVoiceSettings(utterance);
+  
+  // Override with any custom options
+  if (options.rate !== undefined) utterance.rate = options.rate;
+  if (options.pitch !== undefined) utterance.pitch = options.pitch;
+  if (options.volume !== undefined) utterance.volume = options.volume;
   
   // Set event handlers
   if (options.onStart) {

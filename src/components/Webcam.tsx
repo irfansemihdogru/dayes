@@ -13,43 +13,50 @@ export const Webcam: React.FC = () => {
   const consecutiveDetectionsRef = useRef(0);
   const consecutiveNonDetectionsRef = useRef(0);
   
-  // Function to detect faces using the built-in browser API with improved sensitivity
+  // Enhanced face detection using image processing
   const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     if (!video.videoWidth || !video.videoHeight) return;
     
     try {
-      const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) return;
       
       // Draw the current video frame to the canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // Enhanced face detection using color detection for skin tones with focus on center area
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      
       // Focus on the center area where a face is more likely to be
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
-      const faceAreaRadius = Math.min(canvas.width, canvas.height) * 0.4; // Focus on 40% of central area
+      const faceAreaRadius = Math.min(canvas.width, canvas.height) * 0.35; // Focus on central area
       
+      // Get image data from the center area
+      const imageData = context.getImageData(
+        centerX - faceAreaRadius,
+        centerY - faceAreaRadius,
+        faceAreaRadius * 2,
+        faceAreaRadius * 2
+      );
+      
+      const data = imageData.data;
       let facePixels = 0;
       let totalSampledPixels = 0;
       
+      // Improve face detection by focusing on close-up faces only
       // Sample pixels more densely in the center area
-      for (let y = 0; y < canvas.height; y += 8) {
-        for (let x = 0; x < canvas.width; x += 8) {
-          // Calculate distance from center
-          const distFromCenter = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
+      for (let y = 0; y < imageData.height; y += 4) {  // Sample every 4th pixel for performance
+        for (let x = 0; x < imageData.width; x += 4) {
+          // Calculate distance from center of the sampled area
+          const distFromCenter = Math.sqrt(Math.pow(x - imageData.width/2, 2) + Math.pow(y - imageData.height/2, 2));
           
-          // Weight pixels closer to center more heavily
-          if (distFromCenter <= faceAreaRadius) {
-            const i = (y * canvas.width + x) * 4;
+          // Give more weight to pixels closer to center
+          if (distFromCenter <= faceAreaRadius * 0.8) { // Focus more on the very center
+            const i = (y * imageData.width + x) * 4;
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
             
-            // Improved skin tone detection - more sensitive to common skin color ranges
+            // Improved skin tone detection - detect typical face colors 
+            // and make sure the area has enough detail to be a face
             if (r > 60 && g > 40 && b > 20 && 
                 r > g && r > b && 
                 Math.abs(r - g) > 15) {
@@ -60,11 +67,13 @@ export const Webcam: React.FC = () => {
         }
       }
       
-      // Calculate face detection ratio with higher weight for center area
+      // Calculate face detection ratio focused on close-up faces
       const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
-      const currentFaceDetected = faceRatio > 0.08; // More sensitive threshold
       
-      // Implement hysteresis to avoid flickering
+      // More sensitive threshold for close-up face detection
+      const currentFaceDetected = faceRatio > 0.10; 
+      
+      // Hysteresis to avoid flickering and ensure reliable detection
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
         consecutiveNonDetectionsRef.current = 0;
@@ -84,8 +93,8 @@ export const Webcam: React.FC = () => {
         consecutiveNonDetectionsRef.current++;
         consecutiveDetectionsRef.current = 0;
         
-        // Require several consecutive non-detections before declaring face lost
-        if (consecutiveNonDetectionsRef.current >= 10 && faceDetected) {
+        // Require more consecutive non-detections before declaring face lost
+        if (consecutiveNonDetectionsRef.current >= 6 && faceDetected) {
           setFaceDetected(false);
           
           // Dispatch custom event for face lost
@@ -96,10 +105,10 @@ export const Webcam: React.FC = () => {
         }
       }
       
-      // Check if face was detected recently but person may have walked away
+      // Check if user has left the camera frame
       if (faceDetected && lastFaceDetectedTime.current) {
         const elapsed = Date.now() - lastFaceDetectedTime.current;
-        if (elapsed > 5000 && consecutiveNonDetectionsRef.current > 15) {
+        if (elapsed > 3000 && consecutiveNonDetectionsRef.current > 8) {
           // Person likely left - reset face detection
           setFaceDetected(false);
           lastFaceDetectedTime.current = null;
@@ -154,10 +163,10 @@ export const Webcam: React.FC = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
-            // Start face detection loop - more frequent checks for better responsiveness
+            // Start face detection with higher frequency for better responsiveness
             faceDetectionInterval.current = setInterval(() => {
               detectFaces(video, canvas);
-            }, 150); // Check more frequently for better responsiveness
+            }, 100); 
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
@@ -222,15 +231,6 @@ export const Webcam: React.FC = () => {
     return () => clearInterval(checkCameraStatus);
   }, [cameraActive]);
   
-  // Provide a manual way to bypass face detection if needed
-  const handleManualDetection = () => {
-    const event = new CustomEvent('faceDetected', { 
-      detail: { detected: true } 
-    });
-    window.dispatchEvent(event);
-    setFaceDetected(true);
-  };
-  
   return (
     <div className="w-full h-full relative">
       <video 
@@ -250,17 +250,10 @@ export const Webcam: React.FC = () => {
       {errorMessage && (
         <div className="absolute top-0 left-0 w-full bg-red-500 dark:bg-red-700 text-white p-2 text-center">
           {errorMessage}
-          <button 
-            onClick={handleManualDetection}
-            className="ml-2 bg-white text-red-500 dark:bg-gray-800 dark:text-red-300 px-2 py-1 rounded text-sm"
-            aria-label="Devam Et"
-          >
-            Devam Et
-          </button>
         </div>
       )}
       
-      <div className="text-blue-900 dark:text-blue-300 text-opacity-70 dark:text-opacity-90 text-lg absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/60 dark:bg-gray-800/60 px-4 py-2 rounded-lg">
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-blue-900 dark:text-blue-300 bg-white/60 dark:bg-gray-800/60 px-4 py-2 rounded-lg text-lg">
         {!cameraActive 
           ? "Kamera erişimi bekleniyor..." 
           : faceDetected 
