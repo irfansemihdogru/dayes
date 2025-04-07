@@ -110,6 +110,60 @@ const ensureSpeechReset = () => {
   }
 };
 
+// Global queue to prevent speech overlaps
+let speechQueue: {text: string, options: any}[] = [];
+let isSpeaking = false;
+
+// Process the next item in the speech queue
+const processSpeechQueue = () => {
+  if (speechQueue.length === 0 || isSpeaking) return;
+  
+  isSpeaking = true;
+  const item = speechQueue.shift();
+  if (!item) return;
+  
+  const utterance = new SpeechSynthesisUtterance(item.text);
+  forceConsistentVoiceSettings(utterance);
+  
+  // Apply custom options
+  if (item.options.rate !== undefined) utterance.rate = item.options.rate;
+  if (item.options.pitch !== undefined) utterance.pitch = item.options.pitch;
+  if (item.options.volume !== undefined) utterance.volume = item.options.volume;
+  
+  // Event handlers
+  if (item.options.onStart) {
+    utterance.onstart = item.options.onStart;
+  }
+  
+  // Handle completion
+  utterance.onend = () => {
+    isSpeaking = false;
+    if (item.options.onEnd) item.options.onEnd();
+    setTimeout(() => processSpeechQueue(), 100); // Process next item with a small delay
+  };
+  
+  utterance.onerror = () => {
+    isSpeaking = false;
+    console.error('Speech synthesis error');
+    if (item.options.onEnd) item.options.onEnd();
+    setTimeout(() => processSpeechQueue(), 100);
+  };
+  
+  // Fallback for browsers that don't properly fire events
+  const estimatedDuration = (item.text.length * 60) + 1000;
+  setTimeout(() => {
+    if (isSpeaking) {
+      isSpeaking = false;
+      if (item.options.onEnd) item.options.onEnd();
+      processSpeechQueue();
+    }
+  }, estimatedDuration);
+  
+  // Speak the text
+  ensureSpeechReset();
+  window.speechSynthesis.speak(utterance);
+};
+
 // Unified speech function that ensures consistent behavior across browsers
 export const speakText = (
   text: string, 
@@ -127,60 +181,9 @@ export const speakText = (
     return;
   }
   
-  // Ensure clean state before starting
-  ensureSpeechReset();
-  
-  const utterance = new SpeechSynthesisUtterance(text);
-  
-  // Apply consistent voice settings
-  forceConsistentVoiceSettings(utterance);
-  
-  // Override with any custom options
-  if (options.rate !== undefined) utterance.rate = options.rate;
-  if (options.pitch !== undefined) utterance.pitch = options.pitch;
-  if (options.volume !== undefined) utterance.volume = options.volume;
-  
-  // Set event handlers
-  if (options.onStart) {
-    utterance.onstart = options.onStart;
-  }
-  
-  // More reliable end event handling
-  if (options.onEnd) {
-    // Multiple event handlers to ensure onEnd is called
-    utterance.onend = options.onEnd;
-    utterance.onerror = () => {
-      console.error('Speech synthesis error');
-      options.onEnd?.();
-    };
-    
-    // Safari and some mobile browsers sometimes don't fire onend events correctly
-    // So we set a timeout as a fallback
-    const estimatedDuration = (text.length * 60) + 1000; // ~60ms per character + buffer
-    setTimeout(() => {
-      // Only call onEnd if speech synthesis is not currently speaking
-      // This prevents the callback from being called twice
-      if (!window.speechSynthesis.speaking) {
-        options.onEnd?.();
-      }
-    }, estimatedDuration);
-  }
-  
-  // Speak the text
-  window.speechSynthesis.speak(utterance);
-  
-  // Workaround for Chrome bug where speech stops after ~15 seconds
-  const resumeInfinity = setInterval(() => {
-    if (!window.speechSynthesis.speaking) {
-      clearInterval(resumeInfinity);
-      return;
-    }
-    
-    // Resume if paused
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
-    }
-  }, 2000); // Check more frequently (2s instead of 5s)
+  // Add to queue and process
+  speechQueue.push({text, options});
+  processSpeechQueue();
 };
 
 // Initialize immediately

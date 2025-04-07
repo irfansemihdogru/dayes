@@ -98,14 +98,7 @@ const Index = () => {
       
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout - reloading page');
-        toast({
-          title: "Zaman aşımı",
-          description: "Uzun süre işlem yapılmadı. Sistem yenileniyor.",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+        window.location.reload();
       }, 20000);
       
       return () => {
@@ -175,28 +168,24 @@ const Index = () => {
   }, []);
   
   useEffect(() => {
-    // Always turn off listening when changing states
-    setIsListening(false);
-    
-    // Reset voice command timeout when changing states
     if (voiceCommandTimeoutRef.current) {
       clearTimeout(voiceCommandTimeoutRef.current);
       voiceCommandTimeoutRef.current = null;
     }
     
-    // Don't update voice prompts during transitions
     const transitionDelay = setTimeout(() => {
       switch (appState) {
         case 'start-screen':
           setVoicePrompt('');
+          setIsListening(false);
           break;
         case 'face-recognition':
           setVoicePrompt('');
+          setIsListening(false);
           break;
         case 'main-menu': {
           const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
           setVoicePrompt(prompt);
-          // Only start listening if not speaking
           if (!isSpeaking()) {
             setTimeout(() => setIsListening(true), 300);
           }
@@ -204,6 +193,7 @@ const Index = () => {
             speakText(prompt, {
               onStart: () => {
                 isSpeakingRef.current = true;
+                setIsListening(false);
               },
               onEnd: () => {
                 isSpeakingRef.current = false;
@@ -216,14 +206,13 @@ const Index = () => {
         case 'grade-selection': {
           const prompt = 'Öğrenciniz kaçıncı sınıf?';
           setVoicePrompt(prompt);
-          // Only start listening if not speaking
-          if (!isSpeaking()) {
-            setTimeout(() => setIsListening(true), 300);
-          }
+          setIsListening(true);
+          
           if (audioEnabled) {
             speakText(prompt, {
               onStart: () => {
                 isSpeakingRef.current = true;
+                setIsListening(false);
               },
               onEnd: () => {
                 isSpeakingRef.current = false;
@@ -234,10 +223,10 @@ const Index = () => {
           break;
         }
         case 'staff-direction':
-          // No voice recognition in these states
+          setIsListening(false);
           break;
       }
-    }, 300); // Small delay to allow for transitions
+    }, 300);
     
     return () => clearTimeout(transitionDelay);
   }, [appState, audioEnabled]);
@@ -289,6 +278,8 @@ const Index = () => {
   };
   
   const handleGradeSelection = (grade: number) => {
+    setIsListening(false);
+    
     setSelectedGrade(grade);
     
     const staff = gradeToStaff[grade.toString()];
@@ -304,24 +295,14 @@ const Index = () => {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
       
-      setIsListening(false);
+      if (appState === 'main-menu') {
+        setIsListening(false);
+      }
       
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout after processing - reloading page');
-        toast({
-          title: "Zaman aşımı",
-          description: "Uzun süre işlem yapılmadı. Sistem yenileniyor.",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+        window.location.reload();
       }, 20000);
-      
-      toast({
-        title: "İşleniyor",
-        duration: 2000
-      });
       
       const result = await processVoiceCommand(text);
       
@@ -341,17 +322,12 @@ const Index = () => {
       }
     } catch (error) {
       console.error("Error processing voice command:", error);
-      toast({
-        title: "Hata",
-        description: "Ses komutunuz işlenirken bir hata oluştu.",
-        variant: "destructive"
-      });
       
-      setTimeout(() => {
-        if ((appState === 'main-menu' || appState === 'grade-selection') && !isSpeaking()) {
+      if (appState === 'grade-selection' && !isSpeaking()) {
+        setTimeout(() => {
           setIsListening(true);
-        }
-      }, 2000);
+        }, 2000);
+      }
     }
   };
   
@@ -457,7 +433,11 @@ const Index = () => {
                   <VoiceRecognition 
                     isListening={isListening} 
                     onResult={handleVoiceResult}
-                    onListeningEnd={() => setIsListening(false)}
+                    onListeningEnd={() => {
+                      if (appState === 'main-menu') {
+                        setIsListening(false);
+                      }
+                    }}
                     prompt={voicePrompt}
                   />
                 </div>
@@ -468,24 +448,7 @@ const Index = () => {
               <p className="text-gray-600 dark:text-gray-400 text-sm" role="note">
                 ESC tuşuna basarak sistemi sıfırlayabilirsiniz
               </p>
-              <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">
-                Bu sistem görme ve işitme engelli kullanıcılar için erişilebilirlik desteklerine sahiptir
-              </p>
             </div>
-            
-            {isSpeakingRef.current && (
-              <div className="fixed bottom-4 right-4 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded-full shadow-lg animate-pulse flex items-center" aria-live="polite">
-                <Volume2Icon size={16} className="mr-2" />
-                <span>Sistem konuşuyor...</span>
-              </div>
-            )}
-            
-            {isListening && !isSpeakingRef.current && (
-              <div className="fixed bottom-4 right-4 bg-green-600 dark:bg-green-700 text-white px-4 py-2 rounded-full shadow-lg flex items-center" aria-live="polite">
-                <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
-                <span>Dinleniyor...</span>
-              </div>
-            )}
           </div>
         );
     }

@@ -15,8 +15,8 @@ const GradeSelection: React.FC<GradeSelectionProps> = ({ onSelection }) => {
       <CardHeader className="bg-blue-600 text-white rounded-t-lg">
         <CardTitle className="text-2xl text-center">Öğrenciniz Kaçıncı Sınıf?</CardTitle>
       </CardHeader>
-      <CardContent className="p-6">
-        <div className="grid grid-cols-2 gap-4">
+      <CardContent className="p-6 flex flex-col items-center">
+        <div className="grid grid-cols-2 gap-4 w-full max-w-md">
           {grades.map((grade) => (
             <Button
               key={grade}
