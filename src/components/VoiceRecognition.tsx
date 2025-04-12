@@ -48,31 +48,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const retryCountRef = useRef(0);
   const maxRetries = 3;
   
-  // Preprocess voice input to improve grade recognition
-  const preprocessGradeInput = (text: string): string => {
-    // Check if the text might be referring to a grade but in a way that's hard to parse
-    const normalizedText = text.toLowerCase().trim();
-    
-    // Replace common variations of "9th grade" in Turkish
-    if (normalizedText.includes('dokuz') || normalizedText.includes('9.') || normalizedText.includes('9 sınıf')) {
-      return 'dokuzuncu sınıf';
-    }
-    // Replace common variations of "10th grade"
-    else if (normalizedText.includes('on') || normalizedText.includes('10.') || normalizedText.includes('10 sınıf')) {
-      return 'onuncu sınıf';
-    }
-    // Replace common variations of "11th grade"
-    else if (normalizedText.includes('on bir') || normalizedText.includes('11.') || normalizedText.includes('11 sınıf')) {
-      return 'on birinci sınıf';
-    }
-    // Replace common variations of "12th grade"
-    else if (normalizedText.includes('on iki') || normalizedText.includes('12.') || normalizedText.includes('12 sınıf')) {
-      return 'on ikinci sınıf';
-    }
-    
-    return text;
-  };
-  
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
     try {
@@ -98,14 +73,14 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         
         if (result.isFinal) {
           setProcessingVoice(true);
+          onResult(transcriptValue);
           
-          // Preprocess the input specifically for grade recognition
-          const processedText = preprocessGradeInput(transcriptValue);
-          console.log('Processed voice input:', processedText);
-          
-          onResult(processedText);
-          
+          // Auto-disable microphone after receiving a command
           setTimeout(() => {
+            stopRecognition();
+            if (onListeningEnd) {
+              onListeningEnd();
+            }
             setProcessingVoice(false);
             setTranscript('');
           }, 500);
@@ -156,7 +131,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       setRecognitionSupported(false);
       return null;
     }
-  }, [isListening, onResult]);
+  }, [isListening, onListeningEnd, onResult]);
   
   const startRecognition = useCallback(() => {
     // Don't start if we're already active or if speech synthesis is speaking
@@ -190,7 +165,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       // If we got an error, reset the recognition instance to try again next time
       recognitionRef.current = null;
     }
-  }, [initRecognition]);
+  }, [initRecognition, isListening]);
   
   const stopRecognition = useCallback(() => {
     if (!isRecognitionActiveRef.current || !recognitionRef.current) {
@@ -249,6 +224,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       console.log('Manual input submitted:', manualInput);
       onResult(manualInput);
       setManualInput('');
+      
+      // Auto-disable microphone after manual input
+      if (onListeningEnd) {
+        onListeningEnd();
+      }
     }
   };
 
@@ -274,12 +254,33 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   return (
     <div className="mt-4">
       {prompt && (
-        <div className="flex justify-center mb-2">
-          <p className="text-xl font-medium text-blue-800 dark:text-blue-300">{prompt}</p>
+        <div className="flex items-center mb-2">
+          <p className="text-lg text-blue-800">{prompt}</p>
+          <button 
+            onClick={() => {
+              if (prompt && 'speechSynthesis' in window) {
+                // Stop any active recognition
+                stopRecognition();
+                const utterance = new SpeechSynthesisUtterance(prompt);
+                utterance.lang = 'tr-TR';
+                utterance.onend = () => {
+                  // Re-enable recognition when prompt reading ends
+                  if (isListening && !isCurrentlySpeaking()) {
+                    setTimeout(() => startRecognition(), 300);
+                  }
+                };
+                window.speechSynthesis.speak(utterance);
+              }
+            }}
+            className="ml-2 p-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+            aria-label="Metni sesli dinle"
+          >
+            <span role="img" aria-label="sesli dinle">🔊</span>
+          </button>
         </div>
       )}
       
-      <div className="flex justify-center items-center">
+      <div className="flex items-center">
         {isListening ? (
           <div className="flex items-center space-x-2">
             <div className="relative">
@@ -291,14 +292,14 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
                 <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
               )}
             </div>
-            <span className="text-sm text-gray-600 dark:text-gray-300">
+            <span className="text-sm text-gray-600">
               {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
             </span>
           </div>
         ) : (
           <div className="flex items-center space-x-2">
             <MicOffIcon size={24} className="text-gray-400" />
-            <span className="text-sm text-gray-600 dark:text-gray-300">
+            <span className="text-sm text-gray-600">
               {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
             </span>
           </div>
@@ -306,25 +307,25 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       </div>
       
       {transcript && (
-        <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/40 rounded-lg border border-blue-200 dark:border-blue-700">
-          <p className="text-gray-700 dark:text-gray-200 text-center" role="status" aria-live="polite">{transcript}</p>
+        <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <p className="text-gray-700" role="status" aria-live="polite">{transcript}</p>
         </div>
       )}
       
       {error && (
-        <div className="mt-2 text-center">
-          <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+        <div className="mt-2">
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
       
       {/* Manual input as a fallback */}
-      <form onSubmit={handleManualSubmit} className="mt-4 flex max-w-md mx-auto">
+      <form onSubmit={handleManualSubmit} className="mt-2 flex">
         <input
           type="text"
           value={manualInput}
           onChange={handleManualInputChange}
           placeholder="Sesli komut girmek için buraya yazın"
-          className="flex-1 px-4 py-2 border border-blue-300 dark:border-blue-700 dark:bg-gray-800 dark:text-white rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           aria-label="Sesli komut giriş alanı"
         />
         <button
