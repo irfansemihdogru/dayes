@@ -52,8 +52,8 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     if (detected && facingCamera) {
       consecutiveFaceDetections.current += 1;
       
-      // Require only 2 consecutive detections for faster response
-      if (consecutiveFaceDetections.current >= 2) {
+      // Require only 1 detection for faster response (reduced from 2)
+      if (consecutiveFaceDetections.current >= 1) {
         // If we detect face consistently, navigate immediately
         if (!navigatedRef.current) {
           navigatedRef.current = true; // Mark that we've navigated
@@ -65,18 +65,13 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
             clearTimeout(detectionTimeoutRef.current);
           }
           
-          // If welcome message is not playing, navigate immediately
-          if (!isWelcomeMessagePlaying) {
-            // Small delay to ensure UI updates before navigation
-            setTimeout(() => {
-              onDetected();
-            }, 200);
-          }
+          // Navigate immediately regardless of welcome message status for faster response
+          onDetected();
         }
       }
     } else {
-      // Quickly reset detection when face is lost
-      consecutiveFaceDetections.current = Math.max(0, consecutiveFaceDetections.current - 1);
+      // Reset detection when face is lost (but keep it slower to prevent flickering)
+      consecutiveFaceDetections.current = 0;
     }
   };
 
@@ -88,10 +83,8 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
       if (detectionTimeoutRef.current) {
         clearTimeout(detectionTimeoutRef.current);
       }
-      // Small delay to ensure UI updates before navigation
-      setTimeout(() => {
-        onDetected();
-      }, 200);
+      // Navigate immediately
+      onDetected();
     }
   }, [isWelcomeMessagePlaying, onDetected, detecting]);
 
@@ -107,7 +100,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     
     window.addEventListener('faceDetected', handleFaceEvent);
     
-    // Reduced timeout for faster response
+    // Reduced timeout for faster response - 2 seconds instead of 5
     detectionTimeoutRef.current = setTimeout(() => {
       if (detecting && cameraActive && !navigatedRef.current) {
         // If we have any detection at all after this short timeout, just navigate
@@ -115,13 +108,10 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
           navigatedRef.current = true; // Mark that we've navigated
           setDetecting(false);
           faceDetectedRef.current = true;
-          
-          if (!isWelcomeMessagePlaying) {
-            onDetected();
-          }
+          onDetected();
         }
       }
-    }, 5000); // Reduced timeout to 5 seconds for faster response
+    }, 2000); // Reduced timeout to 2 seconds for faster response
     
     return () => {
       window.removeEventListener('faceDetected', handleFaceEvent);

@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 
 export const Webcam: React.FC = () => {
@@ -40,7 +41,8 @@ export const Webcam: React.FC = () => {
       let eyeRegionPixels = 0;
       let eyeRegionTotal = 0;
       
-      const samplingStep = 8;
+      // Reduce sampling step for more accurate detection (was 8, now 4)
+      const samplingStep = 4;
       
       for (let y = 0; y < imageData.height; y += samplingStep) {
         for (let x = 0; x < imageData.width; x += samplingStep) {
@@ -52,7 +54,8 @@ export const Webcam: React.FC = () => {
             const g = data[i + 1];
             const b = data[i + 2];
             
-            if (r > 60 && g > 40 && b > 20 && r > g && r > b) {
+            // Lower threshold for faster face detection
+            if (r > 50 && g > 35 && b > 15 && r > g && r > b) {
               facePixels++;
             }
             totalSampledPixels++;
@@ -74,8 +77,10 @@ export const Webcam: React.FC = () => {
       const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
       const eyeRatio = eyeRegionTotal > 0 ? eyeRegionPixels / eyeRegionTotal : 0;
       
-      const currentFaceDetected = faceRatio > 0.08;
-      const currentFacingCamera = eyeRatio > 0.12;
+      // Lower threshold for faster detection (was 0.08)
+      const currentFaceDetected = faceRatio > 0.06;
+      // Lower threshold for facing camera (was 0.12)
+      const currentFacingCamera = eyeRatio > 0.10;
       
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
@@ -83,7 +88,8 @@ export const Webcam: React.FC = () => {
         
         if (currentFacingCamera) {
           facingCameraConsecutiveRef.current++;
-          if (facingCameraConsecutiveRef.current >= 2) {
+          // Require only 1 detection instead of 2 for faster response
+          if (facingCameraConsecutiveRef.current >= 1) {
             setFacingCamera(true);
           }
         } else {
@@ -93,17 +99,18 @@ export const Webcam: React.FC = () => {
           }
         }
         
-        if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
+        // Require only 1 detection instead of 2 for faster response
+        if (consecutiveDetectionsRef.current >= 1 && !faceDetected) {
           setFaceDetected(true);
           lastFaceDetectedTime.current = Date.now();
           
           const event = new CustomEvent('faceDetected', { 
-            detail: { detected: true, facingCamera } 
+            detail: { detected: true, facingCamera: currentFacingCamera } 
           });
           window.dispatchEvent(event);
         } else if (faceDetected) {
           const event = new CustomEvent('faceDetected', { 
-            detail: { detected: true, facingCamera } 
+            detail: { detected: true, facingCamera: currentFacingCamera } 
           });
           window.dispatchEvent(event);
         }
@@ -116,6 +123,7 @@ export const Webcam: React.FC = () => {
           setFacingCamera(false);
         }
         
+        // Require 3 non-detections to avoid flickering
         if (consecutiveNonDetectionsRef.current >= 3 && faceDetected) {
           setFaceDetected(false);
           
@@ -164,9 +172,10 @@ export const Webcam: React.FC = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
+            // Increased sampling rate from 30ms to 20ms for faster response
             faceDetectionInterval.current = setInterval(() => {
               detectFaces(video, canvas);
-            }, 30);
+            }, 20);
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
