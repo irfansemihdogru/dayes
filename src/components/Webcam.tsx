@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 
 export const Webcam: React.FC = () => {
@@ -15,7 +14,6 @@ export const Webcam: React.FC = () => {
   const consecutiveNonDetectionsRef = useRef(0);
   const facingCameraConsecutiveRef = useRef(0);
   
-  // Enhanced face detection using image processing - optimized for speed
   const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     if (!video.videoWidth || !video.videoHeight) return;
     
@@ -23,15 +21,12 @@ export const Webcam: React.FC = () => {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) return;
       
-      // Draw the current video frame to the canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // Focus on the center area where a face is more likely to be
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
-      const faceAreaRadius = Math.min(canvas.width, canvas.height) * 0.35; // Focus on central area
+      const faceAreaRadius = Math.min(canvas.width, canvas.height) * 0.35;
       
-      // Get image data from the center area
       const imageData = context.getImageData(
         centerX - faceAreaRadius,
         centerY - faceAreaRadius,
@@ -45,31 +40,27 @@ export const Webcam: React.FC = () => {
       let eyeRegionPixels = 0;
       let eyeRegionTotal = 0;
       
-      // First pass - detect face
-      for (let y = 0; y < imageData.height; y += 5) {
-        for (let x = 0; x < imageData.width; x += 5) {
-          // Calculate distance from center of the sampled area
+      const samplingStep = 8;
+      
+      for (let y = 0; y < imageData.height; y += samplingStep) {
+        for (let x = 0; x < imageData.width; x += samplingStep) {
           const distFromCenter = Math.sqrt(Math.pow(x - imageData.width/2, 2) + Math.pow(y - imageData.height/2, 2));
           
-          // Give more weight to pixels closer to center
-          if (distFromCenter <= faceAreaRadius * 0.8) { // Focus more on the very center
+          if (distFromCenter <= faceAreaRadius * 0.8) {
             const i = (y * imageData.width + x) * 4;
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
             
-            // Improved skin tone detection
             if (r > 60 && g > 40 && b > 20 && r > g && r > b) {
               facePixels++;
             }
             totalSampledPixels++;
             
-            // Check for eye region - should be in upper half of face area
             if (y < imageData.height * 0.5 && 
                 distFromCenter < faceAreaRadius * 0.6 && 
                 distFromCenter > faceAreaRadius * 0.2) {
               
-              // Eyes typically have darker pixels
               const brightness = (r + g + b) / 3;
               if (brightness < 120) {
                 eyeRegionPixels++;
@@ -80,24 +71,19 @@ export const Webcam: React.FC = () => {
         }
       }
       
-      // Calculate face detection ratio focused on close-up faces
       const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
       const eyeRatio = eyeRegionTotal > 0 ? eyeRegionPixels / eyeRegionTotal : 0;
       
-      // Lower threshold for face detection
-      const currentFaceDetected = faceRatio > 0.09;
-      
-      // Determine if the person is facing the camera based on eye detection
-      const currentFacingCamera = eyeRatio > 0.15; // Eyes should occupy significant area
+      const currentFaceDetected = faceRatio > 0.08;
+      const currentFacingCamera = eyeRatio > 0.12;
       
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
         consecutiveNonDetectionsRef.current = 0;
         
-        // Update facing camera status with hysteresis to avoid flickering
         if (currentFacingCamera) {
           facingCameraConsecutiveRef.current++;
-          if (facingCameraConsecutiveRef.current >= 3) {
+          if (facingCameraConsecutiveRef.current >= 2) {
             setFacingCamera(true);
           }
         } else {
@@ -107,17 +93,15 @@ export const Webcam: React.FC = () => {
           }
         }
         
-        if (consecutiveDetectionsRef.current >= 3 && !faceDetected) {
+        if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
           setFaceDetected(true);
           lastFaceDetectedTime.current = Date.now();
           
-          // Dispatch custom event for face detection with facing status
           const event = new CustomEvent('faceDetected', { 
             detail: { detected: true, facingCamera } 
           });
           window.dispatchEvent(event);
         } else if (faceDetected) {
-          // Update facing camera status even when face is already detected
           const event = new CustomEvent('faceDetected', { 
             detail: { detected: true, facingCamera } 
           });
@@ -132,28 +116,9 @@ export const Webcam: React.FC = () => {
           setFacingCamera(false);
         }
         
-        // Require more consecutive non-detections before declaring face lost
-        if (consecutiveNonDetectionsRef.current >= 5 && faceDetected) {
+        if (consecutiveNonDetectionsRef.current >= 3 && faceDetected) {
           setFaceDetected(false);
           
-          // Dispatch custom event for face lost
-          const event = new CustomEvent('faceDetected', { 
-            detail: { detected: false, facingCamera: false } 
-          });
-          window.dispatchEvent(event);
-        }
-      }
-      
-      // Check if user has left the camera frame
-      if (faceDetected && lastFaceDetectedTime.current) {
-        const elapsed = Date.now() - lastFaceDetectedTime.current;
-        if (elapsed > 3000 && consecutiveNonDetectionsRef.current > 8) {
-          // Person likely left - reset face detection
-          setFaceDetected(false);
-          setFacingCamera(false);
-          lastFaceDetectedTime.current = null;
-          
-          // Dispatch custom event for face lost
           const event = new CustomEvent('faceDetected', { 
             detail: { detected: false, facingCamera: false } 
           });
@@ -166,7 +131,6 @@ export const Webcam: React.FC = () => {
     }
   };
   
-  // Initialize camera
   useEffect(() => {
     const setupCamera = async () => {
       if (!videoRef.current || !canvasRef.current) return;
@@ -186,10 +150,8 @@ export const Webcam: React.FC = () => {
         streamRef.current = stream;
         video.srcObject = stream;
         
-        // Set camera as active
         setCameraActive(true);
         
-        // Emit camera status event
         const event = new CustomEvent('cameraStatus', { 
           detail: { active: true } 
         });
@@ -199,14 +161,12 @@ export const Webcam: React.FC = () => {
           video.play().then(() => {
             console.log('Video playback started');
             
-            // Configure canvas to match video dimensions
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
-            // Start face detection with higher frequency for faster responsiveness
             faceDetectionInterval.current = setInterval(() => {
               detectFaces(video, canvas);
-            }, 50); // 50ms - frequent sampling for better detection
+            }, 30);
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
@@ -221,7 +181,6 @@ export const Webcam: React.FC = () => {
     setupCamera();
     
     return () => {
-      // Clean up
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
@@ -230,7 +189,6 @@ export const Webcam: React.FC = () => {
         clearInterval(faceDetectionInterval.current);
       }
       
-      // Emit camera inactive event
       const event = new CustomEvent('cameraStatus', { 
         detail: { active: false } 
       });
@@ -242,14 +200,12 @@ export const Webcam: React.FC = () => {
     setErrorMessage(message);
     setCameraActive(false);
     
-    // Emit camera status event
     const event = new CustomEvent('cameraStatus', { 
       detail: { active: false } 
     });
     window.dispatchEvent(event);
   };
   
-  // Check camera status periodically
   useEffect(() => {
     const checkCameraStatus = setInterval(() => {
       if (streamRef.current) {
@@ -259,7 +215,6 @@ export const Webcam: React.FC = () => {
         if (cameraActive !== isActive) {
           setCameraActive(isActive);
           
-          // Emit camera status event
           const event = new CustomEvent('cameraStatus', { 
             detail: { active: isActive } 
           });
@@ -279,7 +234,7 @@ export const Webcam: React.FC = () => {
         playsInline
         autoPlay
         muted
-        style={{ transform: 'scaleX(-1)' }} // Mirror effect
+        style={{ transform: 'scaleX(-1)' }} 
       />
       <canvas 
         ref={canvasRef} 

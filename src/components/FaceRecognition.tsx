@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Webcam } from './Webcam';
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,37 +52,31 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     if (detected && facingCamera) {
       consecutiveFaceDetections.current += 1;
       
-      // Require at least 3 consecutive detections with the person facing the camera
-      if (consecutiveFaceDetections.current >= 3) {
-        setDetectedCount(prev => {
-          const newCount = prev + 1;
+      // Require only 2 consecutive detections for faster response
+      if (consecutiveFaceDetections.current >= 2) {
+        // If we detect face consistently, navigate immediately
+        if (!navigatedRef.current) {
+          navigatedRef.current = true; // Mark that we've navigated
+          faceDetectedRef.current = true;
+          setDetectedCount(prev => prev + 1);
+          setDetecting(false);
           
-          if (newCount >= 2 && !navigatedRef.current) {
-            faceDetectedRef.current = true;
-            
-            // Only call onDetected if welcome message is not playing
-            if (!isWelcomeMessagePlaying) {
-              navigatedRef.current = true; // Mark that we've navigated
-              setDetecting(false);
-              if (detectionTimeoutRef.current) {
-                clearTimeout(detectionTimeoutRef.current);
-              }
-              // Add small delay to ensure UI updates before navigation
-              setTimeout(() => {
-                onDetected();
-              }, 300);
-            }
-            return newCount;
+          if (detectionTimeoutRef.current) {
+            clearTimeout(detectionTimeoutRef.current);
           }
-          return newCount;
-        });
+          
+          // If welcome message is not playing, navigate immediately
+          if (!isWelcomeMessagePlaying) {
+            // Small delay to ensure UI updates before navigation
+            setTimeout(() => {
+              onDetected();
+            }, 200);
+          }
+        }
       }
     } else {
-      // Reset counters if face is not detected or not facing camera
+      // Quickly reset detection when face is lost
       consecutiveFaceDetections.current = Math.max(0, consecutiveFaceDetections.current - 1);
-      if (consecutiveFaceDetections.current === 0) {
-        setDetectedCount(Math.max(0, detectedCount - 1));
-      }
     }
   };
 
@@ -95,10 +88,10 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
       if (detectionTimeoutRef.current) {
         clearTimeout(detectionTimeoutRef.current);
       }
-      // Add small delay to ensure UI updates before navigation
+      // Small delay to ensure UI updates before navigation
       setTimeout(() => {
         onDetected();
-      }, 300);
+      }, 200);
     }
   }, [isWelcomeMessagePlaying, onDetected, detecting]);
 
@@ -114,11 +107,11 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     
     window.addEventListener('faceDetected', handleFaceEvent);
     
-    // Increased timeout for more reliable face detection
+    // Reduced timeout for faster response
     detectionTimeoutRef.current = setTimeout(() => {
       if (detecting && cameraActive && !navigatedRef.current) {
-        // If face detection takes too long, check if we have at least some detections
-        if (detectedCount > 0) {
+        // If we have any detection at all after this short timeout, just navigate
+        if (detectedCount > 0 || consecutiveFaceDetections.current > 0) {
           navigatedRef.current = true; // Mark that we've navigated
           setDetecting(false);
           faceDetectedRef.current = true;
@@ -128,7 +121,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
           }
         }
       }
-    }, 10000); // Reduced timeout to 10 seconds for better responsiveness
+    }, 5000); // Reduced timeout to 5 seconds for faster response
     
     return () => {
       window.removeEventListener('faceDetected', handleFaceEvent);
