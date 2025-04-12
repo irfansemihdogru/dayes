@@ -5,6 +5,7 @@ export const Webcam: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [faceDetected, setFaceDetected] = useState(false);
+  const [facingCamera, setFacingCamera] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
@@ -12,6 +13,7 @@ export const Webcam: React.FC = () => {
   const lastFaceDetectedTime = useRef<number | null>(null);
   const consecutiveDetectionsRef = useRef(0);
   const consecutiveNonDetectionsRef = useRef(0);
+  const facingCameraConsecutiveRef = useRef(0);
   
   // Enhanced face detection using image processing - optimized for speed
   const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
@@ -40,10 +42,12 @@ export const Webcam: React.FC = () => {
       const data = imageData.data;
       let facePixels = 0;
       let totalSampledPixels = 0;
+      let eyeRegionPixels = 0;
+      let eyeRegionTotal = 0;
       
-      // Improve performance by sampling fewer pixels (every 6th pixel instead of 4th)
-      for (let y = 0; y < imageData.height; y += 6) {
-        for (let x = 0; x < imageData.width; x += 6) {
+      // First pass - detect face
+      for (let y = 0; y < imageData.height; y += 5) {
+        for (let x = 0; x < imageData.width; x += 5) {
           // Calculate distance from center of the sampled area
           const distFromCenter = Math.sqrt(Math.pow(x - imageData.width/2, 2) + Math.pow(y - imageData.height/2, 2));
           
@@ -54,40 +58,79 @@ export const Webcam: React.FC = () => {
             const g = data[i + 1];
             const b = data[i + 2];
             
-            // Simplified skin tone detection for better performance
-            if (r > 60 && g > 40 && b > 20 && r > g) {
+            // Improved skin tone detection
+            if (r > 60 && g > 40 && b > 20 && r > g && r > b) {
               facePixels++;
             }
             totalSampledPixels++;
+            
+            // Check for eye region - should be in upper half of face area
+            if (y < imageData.height * 0.5 && 
+                distFromCenter < faceAreaRadius * 0.6 && 
+                distFromCenter > faceAreaRadius * 0.2) {
+              
+              // Eyes typically have darker pixels
+              const brightness = (r + g + b) / 3;
+              if (brightness < 120) {
+                eyeRegionPixels++;
+              }
+              eyeRegionTotal++;
+            }
           }
         }
       }
       
       // Calculate face detection ratio focused on close-up faces
       const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
+      const eyeRatio = eyeRegionTotal > 0 ? eyeRegionPixels / eyeRegionTotal : 0;
       
-      // Lower threshold for faster detection (0.08 instead of 0.10)
-      const currentFaceDetected = faceRatio > 0.08; 
+      // Lower threshold for face detection
+      const currentFaceDetected = faceRatio > 0.09;
       
-      // Make detection more responsive by requiring fewer consecutive detections
+      // Determine if the person is facing the camera based on eye detection
+      const currentFacingCamera = eyeRatio > 0.15; // Eyes should occupy significant area
+      
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
         consecutiveNonDetectionsRef.current = 0;
         
-        // Only need 2 consecutive detections for faster response
-        if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
+        // Update facing camera status with hysteresis to avoid flickering
+        if (currentFacingCamera) {
+          facingCameraConsecutiveRef.current++;
+          if (facingCameraConsecutiveRef.current >= 3) {
+            setFacingCamera(true);
+          }
+        } else {
+          facingCameraConsecutiveRef.current = Math.max(0, facingCameraConsecutiveRef.current - 1);
+          if (facingCameraConsecutiveRef.current === 0) {
+            setFacingCamera(false);
+          }
+        }
+        
+        if (consecutiveDetectionsRef.current >= 3 && !faceDetected) {
           setFaceDetected(true);
           lastFaceDetectedTime.current = Date.now();
           
-          // Dispatch custom event for face detection
+          // Dispatch custom event for face detection with facing status
           const event = new CustomEvent('faceDetected', { 
-            detail: { detected: true } 
+            detail: { detected: true, facingCamera } 
+          });
+          window.dispatchEvent(event);
+        } else if (faceDetected) {
+          // Update facing camera status even when face is already detected
+          const event = new CustomEvent('faceDetected', { 
+            detail: { detected: true, facingCamera } 
           });
           window.dispatchEvent(event);
         }
       } else {
         consecutiveNonDetectionsRef.current++;
         consecutiveDetectionsRef.current = 0;
+        facingCameraConsecutiveRef.current = Math.max(0, facingCameraConsecutiveRef.current - 1);
+        
+        if (facingCameraConsecutiveRef.current === 0) {
+          setFacingCamera(false);
+        }
         
         // Require more consecutive non-detections before declaring face lost
         if (consecutiveNonDetectionsRef.current >= 5 && faceDetected) {
@@ -95,7 +138,7 @@ export const Webcam: React.FC = () => {
           
           // Dispatch custom event for face lost
           const event = new CustomEvent('faceDetected', { 
-            detail: { detected: false } 
+            detail: { detected: false, facingCamera: false } 
           });
           window.dispatchEvent(event);
         }
@@ -107,11 +150,12 @@ export const Webcam: React.FC = () => {
         if (elapsed > 3000 && consecutiveNonDetectionsRef.current > 8) {
           // Person likely left - reset face detection
           setFaceDetected(false);
+          setFacingCamera(false);
           lastFaceDetectedTime.current = null;
           
           // Dispatch custom event for face lost
           const event = new CustomEvent('faceDetected', { 
-            detail: { detected: false } 
+            detail: { detected: false, facingCamera: false } 
           });
           window.dispatchEvent(event);
         }
@@ -162,7 +206,7 @@ export const Webcam: React.FC = () => {
             // Start face detection with higher frequency for faster responsiveness
             faceDetectionInterval.current = setInterval(() => {
               detectFaces(video, canvas);
-            }, 50); // 50ms (was 100ms) - doubled the sample rate for faster detection
+            }, 50); // 50ms - frequent sampling for better detection
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
@@ -253,17 +297,17 @@ export const Webcam: React.FC = () => {
         {!cameraActive 
           ? "Kamera erişimi bekleniyor..." 
           : faceDetected 
-            ? "Yüz algılandı!" 
-            : "Yüzünüzü kameraya gösteriniz"}
+            ? facingCamera ? "Yüz algılandı!" : "Lütfen kameraya bakınız" 
+            : "Lütfen kameraya bakınız"}
       </div>
       
-      {faceDetected && cameraActive && (
+      {faceDetected && facingCamera && cameraActive && (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
           <div className="w-48 h-48 border-4 border-green-500 dark:border-green-400 rounded-full animate-pulse opacity-70"></div>
         </div>
       )}
       
-      {cameraActive && !faceDetected && (
+      {cameraActive && (!faceDetected || !facingCamera) && (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
           <div className="w-64 h-64 border-2 border-dashed border-blue-500 dark:border-blue-400 rounded-full opacity-50"></div>
           <div className="absolute w-24 h-24 border-2 border-yellow-500 dark:border-yellow-400 rounded-full opacity-70"></div>
