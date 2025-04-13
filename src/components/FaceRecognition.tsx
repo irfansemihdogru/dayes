@@ -44,7 +44,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     };
   }, []);
   
-  // Listen for face detection events
+  // Listen for face detection events - optimized for faster response
   useEffect(() => {
     const handleFaceEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -56,7 +56,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
       }
     };
     
-    // Listen for the new user engagement events (looking at camera)
+    // Listen for user engagement events (looking at camera) - faster response
     const handleEngagementEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
       if (customEvent.detail && customEvent.detail.engaged !== undefined) {
@@ -69,13 +69,13 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
             clearTimeout(detectionTimeoutRef.current);
           }
           
-          // Short delay to ensure stable engagement before proceeding
+          // Reduced delay to make detection faster (from 800ms to 400ms)
           detectionTimeoutRef.current = setTimeout(() => {
             if (detecting) {
               setDetecting(false);
               onDetected();
             }
-          }, 800);
+          }, 400);
         } else if (!customEvent.detail.engaged) {
           // If user looks away, cancel any pending detection
           if (detectionTimeoutRef.current) {
@@ -103,7 +103,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     setIsSpeaking(isWelcomeMessagePlaying);
   }, [isWelcomeMessagePlaying]);
   
-  // Check if welcome message has finished and face is detected and user is engaged
+  // Check if welcome message has finished and face is detected and user is engaged - faster now
   useEffect(() => {
     if (faceDetectedRef.current && isUserEngaged && !isWelcomeMessagePlaying && detecting) {
       setDetecting(false);
@@ -135,23 +135,23 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
               <Alert variant="destructive" className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ${isDarkMode ? 'bg-gray-800/95' : 'bg-white/95'} max-w-md`}>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol edin ve sayfayı yenileyin.
+                  Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol edin.
                 </AlertDescription>
               </Alert>
             )}
           </div>
           <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-lg font-medium`}>
             {!cameraActive 
-              ? "Kamera izni gerekli. Lütfen izin veriniz." 
+              ? "Kamera izni gerekli." 
               : detecting
                 ? isSpeaking
-                  ? "Hoş geldiniz! Lütfen bekleyin..."
+                  ? "Hoş geldiniz..."
                   : faceDetected
                     ? isUserEngaged
-                      ? "Yüzünüz tanındı, işleme devam ediliyor..."
-                      : "Lütfen doğrudan ekrana bakınız"
-                    : "Lütfen yüzünüzü kameraya gösteriniz"
-                : "Yüzünüz başarıyla tanındı, uygulama başlatılıyor..."}
+                      ? "Yüzünüz tanındı..."
+                      : "Ekrana bakın"
+                    : "Yüzünüzü gösterin"
+                : "Başlatılıyor..."}
           </p>
         </div>
       </CardContent>

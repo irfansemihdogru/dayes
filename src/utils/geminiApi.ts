@@ -10,11 +10,13 @@ export interface GeminiResponse {
 
 export async function processVoiceCommand(text: string): Promise<GeminiResponse> {
   try {
-    // Simplified, clearer prompt for better and faster responses
+    // Optimized prompt for better response to grade selections
     const prompt = `
       Ses komutunu analiz et ve kullanıcının ne istediğini belirle. 
       Olası işlemler: mesem, usta-ogreticilik-belgesi, diploma, disiplin, ogrenci-alma-izni, 9-sinif-kayit, devamsizlik.
       Sınıf seçimleri: 9, 10, 11, 12.
+      
+      ÖNEMLI: "9. sınıf", "10. sınıf", "11. sınıf", "12. sınıf" gibi ifadeler olunca SADECE "sinif-secimi" intent'i ve ilgili sınıf değeri olarak ayarla. Örneğin "11. sınıf" derse, intent="sinif-secimi" ve grade="11" olmalı.
       
       JSON formatında kısa ve net yanıt ver: 
       {
@@ -52,6 +54,11 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
       
       if (jsonMatch) {
         const jsonResponse = JSON.parse(jsonMatch[0]);
+        // Enhanced recognition for grade selections
+        if (jsonResponse.intent === 'sinif-secimi' && jsonResponse.grade) {
+          console.log('Grade selection detected:', jsonResponse.grade);
+        }
+        
         return {
           text: jsonResponse.text || '',
           intent: jsonResponse.intent || '',
@@ -60,16 +67,16 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
         };
       }
       
-      // Fallback if no JSON found
+      // Improved fallback if no JSON found
       return {
-        text: 'Ne demek istediğinizi anlayamadım. Lütfen tekrar söyler misiniz?',
+        text: 'Komut anlaşılmadı.',
         intent: 'unknown',
         confidence: 0
       };
     } catch (parseError) {
       console.error('Failed to parse Gemini response:', parseError);
       return {
-        text: 'Yanıtınızı anlamakta zorluk çekiyorum. Lütfen tekrar söyler misiniz?',
+        text: 'Anlayamadım.',
         intent: 'unknown',
         confidence: 0
       };
@@ -77,7 +84,7 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
   } catch (error) {
     console.error('Gemini API error:', error);
     return {
-      text: 'Üzgünüm, sesli komutunuzu işlemede bir hata oluştu.',
+      text: 'Ses tanımada hata oluştu.',
       intent: 'error',
       confidence: 0
     };
