@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Moon, Sun, Volume2, VolumeX } from 'lucide-react';
+import { Moon, Sun, Volume2, VolumeX, School, Landmark } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 
 interface StartScreenProps {
@@ -22,12 +22,8 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, audioEnabled, toggle
         <Card className={`${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-xl`}>
           <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg text-center py-8`}>
             <div className="flex justify-center mb-4">
-              <div className="flex items-center justify-center h-32 w-32">
-                <img 
-                  src="/lovable-uploads/41cc4a2b-29e8-49fb-b1f1-21f296721805.png" 
-                  alt="Yıldırım Mesleki ve Teknik Anadolu Lisesi Logo" 
-                  className="h-full w-full object-contain"
-                />
+              <div className="flex items-center justify-center p-3 bg-white dark:bg-gray-700 rounded-full h-24 w-24 shadow-lg">
+                <School className="h-16 w-16 text-blue-600 dark:text-blue-400" aria-label="Okul ikonu" />
               </div>
             </div>
             <CardTitle className="text-3xl font-bold">

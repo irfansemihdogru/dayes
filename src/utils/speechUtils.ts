@@ -49,11 +49,6 @@ export const initSpeechSynthesis = (): Promise<void> => {
       return;
     }
     
-    // Cancel any existing speech immediately
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-    }
-    
     // Set up page unload handler to stop any ongoing speech when page refreshes
     window.addEventListener('beforeunload', () => {
       if (window.speechSynthesis) {
@@ -112,6 +107,7 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
   const turkishVoice = getBestTurkishVoice();
   if (turkishVoice) {
     utterance.voice = turkishVoice;
+    console.log(`Using voice: ${turkishVoice.name} (${turkishVoice.lang})`);
   } else {
     console.warn('No suitable voice found for Turkish');
   }
@@ -120,12 +116,18 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
 // Ensure speech synthesis is properly terminated between utterances
 const ensureSpeechReset = () => {
   // Cancel any ongoing speech
-  if (window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
-    // Small pause to ensure clean slate
-    return new Promise(resolve => setTimeout(resolve, 50));
+  try {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      // Small pause to ensure clean slate
+      setTimeout(() => {}, 50);
+    }
+    
+    // Reset current utterance reference
+    currentUtterance = null;
+  } catch (err) {
+    console.error('Error resetting speech synthesis:', err);
   }
-  return Promise.resolve();
 };
 
 // Global queue to prevent speech overlaps
@@ -142,28 +144,13 @@ export const clearSpeechQueue = (): void => {
   currentUtterance = null;
 };
 
-// Cancel current speech but don't clear the queue
-export const cancelSpeech = (): void => {
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-  isSpeaking = false;
-  currentUtterance = null;
-};
-
 // Process the next item in the speech queue
-const processSpeechQueue = async () => {
+const processSpeechQueue = () => {
   if (speechQueue.length === 0 || isSpeaking) return;
   
   isSpeaking = true;
   const item = speechQueue.shift();
-  if (!item) {
-    isSpeaking = false;
-    return;
-  }
-  
-  // Make sure any previous speech is completely stopped
-  await ensureSpeechReset();
+  if (!item) return;
   
   const utterance = new SpeechSynthesisUtterance(item.text);
   forceConsistentVoiceSettings(utterance);
@@ -179,11 +166,7 @@ const processSpeechQueue = async () => {
   // Event handlers
   if (item.options.onStart) {
     utterance.onstart = () => {
-      try {
-        item.options.onStart();
-      } catch (e) {
-        console.error('Error in onStart callback:', e);
-      }
+      item.options.onStart();
     };
   }
   
@@ -191,59 +174,46 @@ const processSpeechQueue = async () => {
   utterance.onend = () => {
     isSpeaking = false;
     currentUtterance = null;
-    try {
-      if (item.options.onEnd) item.options.onEnd();
-    } catch (e) {
-      console.error('Error in onEnd callback:', e);
-    }
-    
-    // Process next item with a small delay
-    setTimeout(() => processSpeechQueue(), 100);
+    if (item.options.onEnd) item.options.onEnd();
+    setTimeout(() => processSpeechQueue(), 100); // Process next item with a small delay
   };
   
   utterance.onerror = (event) => {
     console.error('Speech synthesis error:', event);
     isSpeaking = false;
     currentUtterance = null;
-    try {
-      if (item.options.onEnd) item.options.onEnd();
-    } catch (e) {
-      console.error('Error in onEnd callback after speech error:', e);
-    }
+    if (item.options.onEnd) item.options.onEnd();
     setTimeout(() => processSpeechQueue(), 100);
   };
   
   // Fallback for browsers that don't properly fire events
-  const estimatedDuration = Math.min((item.text.length * 60) + 1000, 15000); // Cap at 15 seconds max
+  const estimatedDuration = Math.min((item.text.length * 60) + 1000, 10000); // Cap at 10 seconds max
   setTimeout(() => {
-    if (isSpeaking && currentUtterance === utterance) {
-      console.log('Speech end event did not fire. Forcing completion.');
+    if (isSpeaking) {
       isSpeaking = false;
       currentUtterance = null;
-      try {
-        if (item.options.onEnd) item.options.onEnd();
-      } catch (e) {
-        console.error('Error in forced onEnd callback:', e);
-      }
+      if (item.options.onEnd) item.options.onEnd();
       processSpeechQueue();
     }
-  }, estimatedDuration + 500); // Add buffer time
+  }, estimatedDuration);
   
   // Speak the text
-  try {
-    window.speechSynthesis.speak(utterance);
-  } catch (e) {
-    console.error('Error speaking:', e);
-    isSpeaking = false;
-    currentUtterance = null;
-    if (item.options.onEnd) item.options.onEnd();
-    setTimeout(() => processSpeechQueue(), 100);
-  }
+  ensureSpeechReset();
+  window.speechSynthesis.speak(utterance);
 };
 
 // Check if speech synthesis is speaking
 export const isCurrentlySpeaking = (): boolean => {
   return isSpeaking || (window.speechSynthesis && window.speechSynthesis.speaking);
+};
+
+// Cancel current speech
+export const cancelSpeech = (): void => {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  isSpeaking = false;
+  currentUtterance = null;
 };
 
 // Unified speech function that ensures consistent behavior across browsers
@@ -254,8 +224,7 @@ export const speakText = (
     onEnd?: () => void,
     rate?: number,
     pitch?: number,
-    volume?: number,
-    immediate?: boolean
+    volume?: number
   } = {}
 ): void => {
   if (!('speechSynthesis' in window)) {
@@ -264,9 +233,11 @@ export const speakText = (
     return;
   }
   
-  // For immediate speech, cancel current and clear queue
-  if (options.immediate) {
-    clearSpeechQueue();
+  // Cancel existing speech to prevent overlaps
+  if (isSpeaking || window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    isSpeaking = false;
+    currentUtterance = null;
   }
   
   // Add to queue and process
@@ -281,7 +252,7 @@ export default {
   speakText,
   initSpeechSynthesis,
   getBestTurkishVoice,
-  isCurrentlySpeaking,
+  isCurrentlySpeaking: isCurrentlySpeaking,
   cancelSpeech,
   clearSpeechQueue
 };
