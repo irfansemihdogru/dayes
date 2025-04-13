@@ -7,9 +7,6 @@
 let voicesLoaded = false;
 let availableVoices: SpeechSynthesisVoice[] = [];
 
-// Store the current utterance for better control
-let currentUtterance: SpeechSynthesisUtterance | null = null;
-
 // Try to find the best Turkish voice available
 export const getBestTurkishVoice = (): SpeechSynthesisVoice | null => {
   if (!voicesLoaded) {
@@ -49,13 +46,6 @@ export const initSpeechSynthesis = (): Promise<void> => {
       return;
     }
     
-    // Set up page unload handler to stop any ongoing speech when page refreshes
-    window.addEventListener('beforeunload', () => {
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    });
-    
     // Handle browser-specific voice loading behavior
     const loadVoices = () => {
       availableVoices = window.speechSynthesis.getVoices();
@@ -83,13 +73,6 @@ export const initSpeechSynthesis = (): Promise<void> => {
     
     // Force a getVoices call to trigger loading
     window.speechSynthesis.getVoices();
-    
-    // Ensure speech is canceled on page visibility change (tab switch, etc)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    });
   });
 };
 
@@ -122,9 +105,6 @@ const ensureSpeechReset = () => {
       // Small pause to ensure clean slate
       setTimeout(() => {}, 50);
     }
-    
-    // Reset current utterance reference
-    currentUtterance = null;
   } catch (err) {
     console.error('Error resetting speech synthesis:', err);
   }
@@ -133,16 +113,6 @@ const ensureSpeechReset = () => {
 // Global queue to prevent speech overlaps
 let speechQueue: {text: string, options: any}[] = [];
 let isSpeaking = false;
-
-// Clear the speech queue
-export const clearSpeechQueue = (): void => {
-  speechQueue = [];
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-  isSpeaking = false;
-  currentUtterance = null;
-};
 
 // Process the next item in the speech queue
 const processSpeechQueue = () => {
@@ -155,9 +125,6 @@ const processSpeechQueue = () => {
   const utterance = new SpeechSynthesisUtterance(item.text);
   forceConsistentVoiceSettings(utterance);
   
-  // Store the current utterance for control
-  currentUtterance = utterance;
-  
   // Apply custom options
   if (item.options.rate !== undefined) utterance.rate = item.options.rate;
   if (item.options.pitch !== undefined) utterance.pitch = item.options.pitch;
@@ -165,33 +132,28 @@ const processSpeechQueue = () => {
   
   // Event handlers
   if (item.options.onStart) {
-    utterance.onstart = () => {
-      item.options.onStart();
-    };
+    utterance.onstart = item.options.onStart;
   }
   
   // Handle completion
   utterance.onend = () => {
     isSpeaking = false;
-    currentUtterance = null;
     if (item.options.onEnd) item.options.onEnd();
     setTimeout(() => processSpeechQueue(), 100); // Process next item with a small delay
   };
   
-  utterance.onerror = (event) => {
-    console.error('Speech synthesis error:', event);
+  utterance.onerror = () => {
     isSpeaking = false;
-    currentUtterance = null;
+    console.error('Speech synthesis error');
     if (item.options.onEnd) item.options.onEnd();
     setTimeout(() => processSpeechQueue(), 100);
   };
   
   // Fallback for browsers that don't properly fire events
-  const estimatedDuration = Math.min((item.text.length * 60) + 1000, 10000); // Cap at 10 seconds max
+  const estimatedDuration = (item.text.length * 60) + 1000;
   setTimeout(() => {
     if (isSpeaking) {
       isSpeaking = false;
-      currentUtterance = null;
       if (item.options.onEnd) item.options.onEnd();
       processSpeechQueue();
     }
@@ -200,20 +162,6 @@ const processSpeechQueue = () => {
   // Speak the text
   ensureSpeechReset();
   window.speechSynthesis.speak(utterance);
-};
-
-// Check if speech synthesis is speaking
-export const isCurrentlySpeaking = (): boolean => {
-  return isSpeaking || (window.speechSynthesis && window.speechSynthesis.speaking);
-};
-
-// Cancel current speech
-export const cancelSpeech = (): void => {
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-  isSpeaking = false;
-  currentUtterance = null;
 };
 
 // Unified speech function that ensures consistent behavior across browsers
@@ -233,13 +181,6 @@ export const speakText = (
     return;
   }
   
-  // Cancel existing speech to prevent overlaps
-  if (isSpeaking || window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
-    isSpeaking = false;
-    currentUtterance = null;
-  }
-  
   // Add to queue and process
   speechQueue.push({text, options});
   processSpeechQueue();
@@ -251,8 +192,5 @@ initSpeechSynthesis();
 export default {
   speakText,
   initSpeechSynthesis,
-  getBestTurkishVoice,
-  isCurrentlySpeaking: isCurrentlySpeaking,
-  cancelSpeech,
-  clearSpeechQueue
+  getBestTurkishVoice
 };

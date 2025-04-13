@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import FaceRecognition from '@/components/FaceRecognition';
 import MainMenu from '@/components/MainMenu';
@@ -7,9 +6,10 @@ import StaffDirectionResult from '@/components/StaffDirectionResult';
 import VoiceRecognition from '@/components/VoiceRecognition';
 import StartScreen from '@/components/StartScreen';
 import { processVoiceCommand } from '@/utils/geminiApi';
+import { useToast } from '@/hooks/use-toast';
 import { Volume2Icon, VolumeXIcon, School } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
-import { speakText, initSpeechSynthesis, clearSpeechQueue, isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
+import { speakText, initSpeechSynthesis } from '@/utils/speechUtils';
 
 type AppState = 
   | 'start-screen'
@@ -62,27 +62,21 @@ const Index = () => {
   const [voicePrompt, setVoicePrompt] = useState<string>('');
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [welcomeMessagePlaying, setWelcomeMessagePlaying] = useState(false);
+  const { toast } = useToast();
   const appInitialized = useRef(false);
+  const isSpeakingRef = useRef(false);
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
-    // Initialize speech synthesis when the app starts
     initSpeechSynthesis().then(() => {
       console.log('Speech synthesis initialized');
     });
-    
-    // Cancel any ongoing speech when the page unloads
-    const handleUnload = () => {
-      clearSpeechQueue();
-    };
-    
-    window.addEventListener('beforeunload', handleUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-      clearSpeechQueue();
-    };
   }, []);
+  
+  const isSpeaking = () => {
+    return window.speechSynthesis && window.speechSynthesis.speaking;
+  };
   
   useEffect(() => {
     if (!appInitialized.current && appState === 'face-recognition') {
@@ -96,27 +90,24 @@ const Index = () => {
     }
   }, [appState, audioEnabled]);
   
-  // Clear any active timeouts when app state changes
   useEffect(() => {
-    if (voiceCommandTimeoutRef.current) {
-      clearTimeout(voiceCommandTimeoutRef.current);
-      voiceCommandTimeoutRef.current = null;
-    }
-    
-    // Start a new timeout for main menu and grade selection states
     if ((appState === 'main-menu' || appState === 'grade-selection') && isListening) {
-      voiceCommandTimeoutRef.current = setTimeout(() => {
-        console.log('Voice command timeout - reloading page');
-        resetApp();
-      }, 30000); // 30 seconds timeout
-    }
-    
-    return () => {
       if (voiceCommandTimeoutRef.current) {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
-    };
-  }, [appState, isListening]);
+      
+      voiceCommandTimeoutRef.current = setTimeout(() => {
+        console.log('Voice command timeout - reloading page');
+        window.location.reload();
+      }, 20000);
+      
+      return () => {
+        if (voiceCommandTimeoutRef.current) {
+          clearTimeout(voiceCommandTimeoutRef.current);
+        }
+      };
+    }
+  }, [appState, isListening, toast]);
   
   const speakWelcomeMessage = () => {
     if (!audioEnabled) {
@@ -124,16 +115,15 @@ const Index = () => {
       return;
     }
     
-    // Cancel any ongoing speech first
-    cancelSpeech();
-    
     const welcomeText = "Yıldırım Mesleki ve Teknik Anadolu Lisesi Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
     
     speakText(welcomeText, {
       onStart: () => {
+        isSpeakingRef.current = true;
         setWelcomeMessagePlaying(true);
       },
       onEnd: () => {
+        isSpeakingRef.current = false;
         setWelcomeMessagePlaying(false);
       }
     });
@@ -144,27 +134,23 @@ const Index = () => {
       setTimeout(() => {
         setAppState('main-menu');
         
-        if (!isCurrentlySpeaking()) {
-          // Don't start listening yet, wait until prompt is spoken
-          setIsListening(false);
+        if (!isSpeaking()) {
+          setIsListening(true);
         }
         
         const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
         setVoicePrompt(prompt);
         
         if (audioEnabled) {
-          // Cancel any ongoing speech first
-          cancelSpeech();
-          
           speakText(prompt, {
+            onStart: () => {
+              isSpeakingRef.current = true;
+            },
             onEnd: () => {
-              // Only start listening after the prompt has been spoken
+              isSpeakingRef.current = false;
               setIsListening(true);
             }
           });
-        } else {
-          // If audio is disabled, just start listening immediately
-          setIsListening(true);
         }
       }, 1000);
     }
@@ -173,7 +159,7 @@ const Index = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        resetApp();
+        window.location.reload();
       }
     };
     
@@ -182,63 +168,61 @@ const Index = () => {
   }, []);
   
   useEffect(() => {
-    // When app state changes, update voice prompts
+    if (voiceCommandTimeoutRef.current) {
+      clearTimeout(voiceCommandTimeoutRef.current);
+      voiceCommandTimeoutRef.current = null;
+    }
+    
     const transitionDelay = setTimeout(() => {
       switch (appState) {
         case 'start-screen':
           setVoicePrompt('');
           setIsListening(false);
           break;
-          
         case 'face-recognition':
           setVoicePrompt('');
           setIsListening(false);
           break;
-          
         case 'main-menu': {
           const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
           setVoicePrompt(prompt);
-          
-          // Cancel any ongoing speech
-          cancelSpeech();
-          
+          if (!isSpeaking()) {
+            setTimeout(() => setIsListening(true), 300);
+          }
           if (audioEnabled) {
             speakText(prompt, {
+              onStart: () => {
+                isSpeakingRef.current = true;
+                setIsListening(false);
+              },
               onEnd: () => {
-                // Only start listening after the prompt
+                isSpeakingRef.current = false;
                 setIsListening(true);
               }
             });
-          } else {
-            // If audio is disabled, just start listening
-            setIsListening(true);
           }
           break;
         }
-        
         case 'grade-selection': {
           const prompt = 'Öğrenciniz kaçıncı sınıf?';
           setVoicePrompt(prompt);
-          
-          // Cancel any ongoing speech
-          cancelSpeech();
+          setIsListening(true);
           
           if (audioEnabled) {
             speakText(prompt, {
+              onStart: () => {
+                isSpeakingRef.current = true;
+                setIsListening(false);
+              },
               onEnd: () => {
-                // Only start listening after the prompt
+                isSpeakingRef.current = false;
                 setIsListening(true);
               }
             });
-          } else {
-            // If audio is disabled, just start listening
-            setIsListening(true);
           }
           break;
         }
-        
         case 'staff-direction':
-          // No need for microphone in staff direction state
           setIsListening(false);
           break;
       }
@@ -248,19 +232,11 @@ const Index = () => {
   }, [appState, audioEnabled]);
   
   const resetApp = () => {
-    // Cancel any ongoing speech
-    cancelSpeech();
-    
-    // Cancel any active timeouts
-    if (voiceCommandTimeoutRef.current) {
-      clearTimeout(voiceCommandTimeoutRef.current);
-      voiceCommandTimeoutRef.current = null;
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      isSpeakingRef.current = false;
     }
     
-    // Clear speech queue
-    clearSpeechQueue();
-    
-    // Reset the app state
     window.location.reload();
   };
   
@@ -269,8 +245,10 @@ const Index = () => {
   };
   
   const toggleAudio = () => {
-    // Cancel any ongoing speech when toggling audio
-    cancelSpeech();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      isSpeakingRef.current = false;
+    }
     
     setAudioEnabled(!audioEnabled);
     
@@ -282,9 +260,6 @@ const Index = () => {
   };
   
   const handleServiceSelection = (service: string) => {
-    // Turn off microphone when a service is selected
-    setIsListening(false);
-    
     setSelectedService(service);
     
     if (service === 'disiplin') {
@@ -303,7 +278,6 @@ const Index = () => {
   };
   
   const handleGradeSelection = (grade: number) => {
-    // Turn off microphone when a grade is selected
     setIsListening(false);
     
     setSelectedGrade(grade);
@@ -317,13 +291,21 @@ const Index = () => {
   
   const handleVoiceResult = async (text: string) => {
     try {
-      // Reset timeout when a voice command is received
       if (voiceCommandTimeoutRef.current) {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
       
-      // Process the voice command
+      if (appState === 'main-menu') {
+        setIsListening(false);
+      }
+      
+      voiceCommandTimeoutRef.current = setTimeout(() => {
+        console.log('Voice command timeout after processing - reloading page');
+        window.location.reload();
+      }, 20000);
+      
       const result = await processVoiceCommand(text);
+      
       console.log("Gemini API result:", result);
       
       if (appState === 'main-menu') {
@@ -336,23 +318,15 @@ const Index = () => {
         const grade = parseInt(result.grade);
         if ([9, 10, 11, 12].includes(grade)) {
           handleGradeSelection(grade);
-        } else {
-          // If grade is not valid, restart listening
-          if (!isCurrentlySpeaking()) {
-            setTimeout(() => {
-              setIsListening(true);
-            }, 1000);
-          }
         }
       }
     } catch (error) {
       console.error("Error processing voice command:", error);
       
-      // Restart listening for grade selection if there was an error
-      if (appState === 'grade-selection' && !isCurrentlySpeaking()) {
+      if (appState === 'grade-selection' && !isSpeaking()) {
         setTimeout(() => {
           setIsListening(true);
-        }, 1000);
+        }, 2000);
       }
     }
   };
@@ -454,13 +428,12 @@ const Index = () => {
                 )}
               </div>
               
-              {(appState === 'main-menu' || appState === 'grade-selection') && (
+              {(appState === 'main-menu' || appState === 'grade-selection') && isListening && (
                 <div className="mt-4 max-w-4xl mx-auto">
                   <VoiceRecognition 
                     isListening={isListening} 
                     onResult={handleVoiceResult}
                     onListeningEnd={() => {
-                      // Only automatically turn off the microphone in main menu, not in grade selection
                       if (appState === 'main-menu') {
                         setIsListening(false);
                       }
