@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Webcam } from './Webcam';
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +16,9 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
   const [detectedCount, setDetectedCount] = useState(0);
   const [cameraActive, setCameraActive] = useState(false);
   const faceDetectedRef = useRef(false);
+  const consecutiveFaceDetections = useRef(0);
   const { isDarkMode } = useTheme();
+  const navigatedRef = useRef(false); // Track if we've already navigated to prevent multiple calls
   
   // Listen for camera status from the Webcam component
   useEffect(() => {
@@ -30,6 +31,8 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
         if (!customEvent.detail.active) {
           setDetectedCount(0);
           faceDetectedRef.current = false;
+          consecutiveFaceDetections.current = 0;
+          navigatedRef.current = false; // Reset navigation state
         }
       }
     };
@@ -41,44 +44,46 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     };
   }, []);
   
-  // Listen for the faceDetected event from the Webcam component - optimized for faster detection
-  const handleFaceDetection = (detected: boolean) => {
-    if (!detecting || !cameraActive) return;
+  // Listen for the faceDetected event from the Webcam component
+  const handleFaceDetection = (detected: boolean, facingCamera: boolean) => {
+    if (!detecting || !cameraActive || navigatedRef.current) return;
     
-    if (detected) {
-      // Increment detection count to make the detection more reliable
-      setDetectedCount(prev => {
-        const newCount = prev + 1;
-        
-        // Reduced the consecutive detections requirement (2 instead of 3)
-        if (newCount >= 2) {
+    // Only consider detection valid if the person is actually facing the camera
+    if (detected && facingCamera) {
+      consecutiveFaceDetections.current += 1;
+      
+      // Require only 1 detection for faster response (reduced from 2)
+      if (consecutiveFaceDetections.current >= 1) {
+        // If we detect face consistently, navigate immediately
+        if (!navigatedRef.current) {
+          navigatedRef.current = true; // Mark that we've navigated
           faceDetectedRef.current = true;
+          setDetectedCount(prev => prev + 1);
+          setDetecting(false);
           
-          // Only call onDetected if welcome message is not playing
-          if (!isWelcomeMessagePlaying) {
-            setDetecting(false);
-            if (detectionTimeoutRef.current) {
-              clearTimeout(detectionTimeoutRef.current);
-            }
-            onDetected();
+          if (detectionTimeoutRef.current) {
+            clearTimeout(detectionTimeoutRef.current);
           }
-          return newCount;
+          
+          // Navigate immediately regardless of welcome message status for faster response
+          onDetected();
         }
-        return newCount;
-      });
+      }
     } else {
-      // Reset the counter if face is lost
-      setDetectedCount(0);
+      // Reset detection when face is lost (but keep it slower to prevent flickering)
+      consecutiveFaceDetections.current = 0;
     }
   };
 
   // Check if welcome message has finished playing and we have already detected a face
   useEffect(() => {
-    if (faceDetectedRef.current && !isWelcomeMessagePlaying && detecting) {
+    if (faceDetectedRef.current && !isWelcomeMessagePlaying && detecting && !navigatedRef.current) {
+      navigatedRef.current = true; // Mark that we've navigated
       setDetecting(false);
       if (detectionTimeoutRef.current) {
         clearTimeout(detectionTimeoutRef.current);
       }
+      // Navigate immediately
       onDetected();
     }
   }, [isWelcomeMessagePlaying, onDetected, detecting]);
@@ -87,25 +92,26 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
   useEffect(() => {
     const handleFaceEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
-      if (customEvent.detail && customEvent.detail.detected !== undefined) {
-        handleFaceDetection(customEvent.detail.detected);
+      if (customEvent.detail) {
+        const { detected, facingCamera } = customEvent.detail;
+        handleFaceDetection(detected, facingCamera);
       }
     };
     
     window.addEventListener('faceDetected', handleFaceEvent);
     
-    // Reduced timeout from 15s to 10s for faster fallback
+    // Reduced timeout for faster response - 2 seconds instead of 5
     detectionTimeoutRef.current = setTimeout(() => {
-      if (detecting && cameraActive) {
-        setDetecting(false);
-        faceDetectedRef.current = true;
-        
-        // Only proceed if welcome message has finished
-        if (!isWelcomeMessagePlaying) {
+      if (detecting && cameraActive && !navigatedRef.current) {
+        // If we have any detection at all after this short timeout, just navigate
+        if (detectedCount > 0 || consecutiveFaceDetections.current > 0) {
+          navigatedRef.current = true; // Mark that we've navigated
+          setDetecting(false);
+          faceDetectedRef.current = true;
           onDetected();
         }
       }
-    }, 10000); // 10 seconds timeout (reduced from 15s)
+    }, 2000); // Reduced timeout to 2 seconds for faster response
     
     return () => {
       window.removeEventListener('faceDetected', handleFaceEvent);
@@ -113,7 +119,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
         clearTimeout(detectionTimeoutRef.current);
       }
     };
-  }, [detecting, onDetected, cameraActive, isWelcomeMessagePlaying]);
+  }, [detecting, onDetected, cameraActive, isWelcomeMessagePlaying, detectedCount]);
 
   return (
     <Card className={`w-full max-w-5xl mx-auto ${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
@@ -142,7 +148,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
               : detecting 
                 ? isWelcomeMessagePlaying
                   ? "Hoş geldiniz! Yönlendirme başlıyor..."
-                  : "Yüzünüz tanınıyor, lütfen kameraya bakınız..."
+                  : "Lütfen kameraya bakınız, yüzünüz tanınıyor..."
                 : "Yüzünüz başarıyla tanındı, uygulama başlatılıyor..."}
           </p>
         </div>

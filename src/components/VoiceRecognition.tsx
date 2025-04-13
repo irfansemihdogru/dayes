@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { isCurrentlySpeaking } from '@/utils/speechUtils';
 
 interface VoiceRecognitionProps {
   isListening: boolean;
@@ -45,13 +46,32 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isRecognitionActiveRef = useRef(false);
   const retryCountRef = useRef(0);
-  const maxRetries = 5;
-  const { toast } = useToast();
+  const maxRetries = 3;
   
-  // Helper function to check if speech synthesis is speaking
-  const isSpeaking = useCallback(() => {
-    return window.speechSynthesis && window.speechSynthesis.speaking;
-  }, []);
+  // Preprocess voice input to improve grade recognition
+  const preprocessGradeInput = (text: string): string => {
+    // Check if the text might be referring to a grade but in a way that's hard to parse
+    const normalizedText = text.toLowerCase().trim();
+    
+    // Replace common variations of "9th grade" in Turkish
+    if (normalizedText.includes('dokuz') || normalizedText.includes('9.') || normalizedText.includes('9 sınıf')) {
+      return 'dokuzuncu sınıf';
+    }
+    // Replace common variations of "10th grade"
+    else if (normalizedText.includes('on') || normalizedText.includes('10.') || normalizedText.includes('10 sınıf')) {
+      return 'onuncu sınıf';
+    }
+    // Replace common variations of "11th grade"
+    else if (normalizedText.includes('on bir') || normalizedText.includes('11.') || normalizedText.includes('11 sınıf')) {
+      return 'on birinci sınıf';
+    }
+    // Replace common variations of "12th grade"
+    else if (normalizedText.includes('on iki') || normalizedText.includes('12.') || normalizedText.includes('12 sınıf')) {
+      return 'on ikinci sınıf';
+    }
+    
+    return text;
+  };
   
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
@@ -60,11 +80,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       if (!SpeechRecognition) {
         console.error('Speech Recognition API is not supported in this browser');
         setRecognitionSupported(false);
-        toast({
-          title: "Ses tanıma desteklenmiyor",
-          description: "Tarayıcınız ses tanıma özelliğini desteklemiyor. Lütfen metin girişini kullanın.",
-          variant: "destructive",
-        });
         return null;
       }
       
@@ -83,17 +98,17 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         
         if (result.isFinal) {
           setProcessingVoice(true);
-          onResult(transcriptValue);
           
-          // Auto-disable microphone after receiving a command
+          // Preprocess the input specifically for grade recognition
+          const processedText = preprocessGradeInput(transcriptValue);
+          console.log('Processed voice input:', processedText);
+          
+          onResult(processedText);
+          
           setTimeout(() => {
-            stopRecognition();
-            if (onListeningEnd) {
-              onListeningEnd();
-            }
             setProcessingVoice(false);
             setTranscript('');
-          }, 1000);
+          }, 500);
         }
       };
       
@@ -104,45 +119,21 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           // Don't show error for aborted, just retry
           console.log('Recognition aborted, will retry automatically');
         } else if (event.error === 'no-speech') {
-          setError('Ses algılanamadı. Lütfen daha yüksek sesle konuşun.');
-          toast({
-            title: "Ses algılanamadı",
-            description: "Lütfen daha yüksek sesle konuşun veya mikrofonunuzu kontrol edin.",
-            variant: "default",
-          });
+          setError('Ses algılanamadı');
         } else if (event.error === 'network') {
-          setError('Ağ hatası. Lütfen internet bağlantınızı kontrol edin.');
-          toast({
-            title: "Ağ hatası",
-            description: "Lütfen internet bağlantınızı kontrol edin.",
-            variant: "destructive",
-          });
+          setError('Ağ hatası');
         } else {
           setError(`Ses tanıma hatası: ${event.error}`);
-          toast({
-            title: "Ses tanıma hatası",
-            description: `${event.error}`,
-            variant: "destructive",
-          });
         }
         
-        // Try to restart after a short delay
-        if (retryCountRef.current < maxRetries) {
+        // Try to restart after a short delay if we're supposed to be listening
+        if (isListening && retryCountRef.current < maxRetries && !isCurrentlySpeaking()) {
           retryCountRef.current++;
           setTimeout(() => {
-            if (isListening && !isSpeaking()) {
-              console.log(`Retry attempt ${retryCountRef.current} of ${maxRetries}`);
-              startRecognition();
-            }
-          }, 300); // Shorter delay for retries
+            startRecognition();
+          }, 300);
         } else {
-          console.log('Max retries reached, waiting longer before next attempt');
           retryCountRef.current = 0;
-          setTimeout(() => {
-            if (isListening && !isSpeaking()) {
-              startRecognition();
-            }
-          }, 1000); // Longer delay after max retries
         }
       };
       
@@ -151,13 +142,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         isRecognitionActiveRef.current = false;
         
         // Only try to restart if we're still supposed to be listening and not speaking
-        if (isListening && !isSpeaking()) {
+        if (isListening && !isCurrentlySpeaking()) {
           console.log('Recognition ended but isListening is true, restarting');
           setTimeout(() => {
             startRecognition();
           }, 300);
-        } else if (onListeningEnd) {
-          onListeningEnd();
         }
       };
       
@@ -165,18 +154,13 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     } catch (err) {
       console.error('Failed to initialize speech recognition:', err);
       setRecognitionSupported(false);
-      toast({
-        title: "Ses tanıma başlatılamadı",
-        description: "Tarayıcınız ses tanıma özelliğini desteklemiyor olabilir.",
-        variant: "destructive",
-      });
       return null;
     }
-  }, [isListening, onListeningEnd, onResult, toast, isSpeaking]);
+  }, [isListening, onResult]);
   
   const startRecognition = useCallback(() => {
     // Don't start if we're already active or if speech synthesis is speaking
-    if (isRecognitionActiveRef.current || isSpeaking()) {
+    if (isRecognitionActiveRef.current || isCurrentlySpeaking()) {
       console.log('Recognition already active or system is speaking, not starting recognition');
       return;
     }
@@ -205,15 +189,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       
       // If we got an error, reset the recognition instance to try again next time
       recognitionRef.current = null;
-      
-      // Try to restart after a short delay if not speaking
-      setTimeout(() => {
-        if (isListening && !isSpeaking()) {
-          startRecognition();
-        }
-      }, 500);
     }
-  }, [initRecognition, isListening, isSpeaking]);
+  }, [initRecognition]);
   
   const stopRecognition = useCallback(() => {
     if (!isRecognitionActiveRef.current || !recognitionRef.current) {
@@ -233,23 +210,23 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   useEffect(() => {
     const checkSpeakingInterval = setInterval(() => {
       // If system is speaking, ensure recognition is stopped
-      if (isSpeaking() && isRecognitionActiveRef.current) {
+      if (isCurrentlySpeaking() && isRecognitionActiveRef.current) {
         console.log("System is speaking, stopping recognition");
         stopRecognition();
       } 
       // If system is not speaking and we should be listening, start recognition
-      else if (!isSpeaking() && isListening && !isRecognitionActiveRef.current) {
+      else if (!isCurrentlySpeaking() && isListening && !isRecognitionActiveRef.current) {
         console.log("System not speaking, can start recognition");
         startRecognition();
       }
     }, 300);
     
     return () => clearInterval(checkSpeakingInterval);
-  }, [isListening, isSpeaking, startRecognition, stopRecognition]);
+  }, [isListening, startRecognition, stopRecognition]);
   
   // Manage recognition based on isListening prop
   useEffect(() => {
-    if (isListening && !isSpeaking()) {
+    if (isListening && !isCurrentlySpeaking()) {
       startRecognition();
     } else {
       stopRecognition();
@@ -259,7 +236,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     return () => {
       stopRecognition();
     };
-  }, [isListening, startRecognition, stopRecognition, isSpeaking]);
+  }, [isListening, startRecognition, stopRecognition]);
   
   // For fallback if speech recognition is not supported
   const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,11 +249,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       console.log('Manual input submitted:', manualInput);
       onResult(manualInput);
       setManualInput('');
-      
-      // Auto-disable microphone after manual input
-      if (onListeningEnd) {
-        onListeningEnd();
-      }
     }
   };
 
@@ -290,48 +262,24 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         console.log('Microphone access granted');
       } catch (err) {
         console.error('Microphone access denied:', err);
-        toast({
-          title: "Mikrofon erişimi reddedildi",
-          description: "Ses tanıma için lütfen mikrofon erişimine izin verin.",
-          variant: "destructive",
-          duration: 5000,
-        });
+        setRecognitionSupported(false);
       }
     };
     
-    checkMicrophoneAccess();
-  }, [toast]);
+    if (isListening) {
+      checkMicrophoneAccess();
+    }
+  }, [isListening]);
   
   return (
     <div className="mt-4">
       {prompt && (
-        <div className="flex items-center mb-2">
-          <p className="text-lg text-blue-800">{prompt}</p>
-          <button 
-            onClick={() => {
-              if (prompt && 'speechSynthesis' in window) {
-                // Stop any active recognition
-                stopRecognition();
-                const utterance = new SpeechSynthesisUtterance(prompt);
-                utterance.lang = 'tr-TR';
-                utterance.onend = () => {
-                  // Re-enable recognition when prompt reading ends
-                  if (isListening && !isSpeaking()) {
-                    setTimeout(() => startRecognition(), 300);
-                  }
-                };
-                window.speechSynthesis.speak(utterance);
-              }
-            }}
-            className="ml-2 p-1 text-blue-600 hover:text-blue-800 focus:outline-none"
-            aria-label="Metni sesli dinle"
-          >
-            <span role="img" aria-label="sesli dinle">🔊</span>
-          </button>
+        <div className="flex justify-center mb-2">
+          <p className="text-xl font-medium text-blue-800 dark:text-blue-300">{prompt}</p>
         </div>
       )}
       
-      <div className="flex items-center">
+      <div className="flex justify-center items-center">
         {isListening ? (
           <div className="flex items-center space-x-2">
             <div className="relative">
@@ -343,40 +291,40 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
                 <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
               )}
             </div>
-            <span className="text-sm text-gray-600">
-              {processingVoice ? 'İşleniyor...' : isSpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
             </span>
           </div>
         ) : (
           <div className="flex items-center space-x-2">
             <MicOffIcon size={24} className="text-gray-400" />
-            <span className="text-sm text-gray-600">
-              {isSpeaking() ? 'Sistem konuşuyor...' : 'Dinleme beklemede'}
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
             </span>
           </div>
         )}
       </div>
       
       {transcript && (
-        <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-          <p className="text-gray-700" role="status" aria-live="polite">{transcript}</p>
+        <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/40 rounded-lg border border-blue-200 dark:border-blue-700">
+          <p className="text-gray-700 dark:text-gray-200 text-center" role="status" aria-live="polite">{transcript}</p>
         </div>
       )}
       
       {error && (
-        <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200" role="alert">
-          <p className="text-red-700">{error}</p>
+        <div className="mt-2 text-center">
+          <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
         </div>
       )}
       
-      {/* Always show manual input as a fallback */}
-      <form onSubmit={handleManualSubmit} className="mt-2 flex">
+      {/* Manual input as a fallback */}
+      <form onSubmit={handleManualSubmit} className="mt-4 flex max-w-md mx-auto">
         <input
           type="text"
           value={manualInput}
           onChange={handleManualInputChange}
           placeholder="Sesli komut girmek için buraya yazın"
-          className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-4 py-2 border border-blue-300 dark:border-blue-700 dark:bg-gray-800 dark:text-white rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           aria-label="Sesli komut giriş alanı"
         />
         <button
