@@ -5,6 +5,7 @@ export const Webcam: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [faceDetected, setFaceDetected] = useState(false);
+  const [isLookingAtCamera, setIsLookingAtCamera] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
@@ -12,8 +13,9 @@ export const Webcam: React.FC = () => {
   const lastFaceDetectedTime = useRef<number | null>(null);
   const consecutiveDetectionsRef = useRef(0);
   const consecutiveNonDetectionsRef = useRef(0);
+  const faceEngagementTimerRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Enhanced face detection using image processing - optimized for speed
+  // Enhanced face detection using image processing with focus on eye area
   const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
     if (!video.videoWidth || !video.videoHeight) return;
     
@@ -40,10 +42,14 @@ export const Webcam: React.FC = () => {
       const data = imageData.data;
       let facePixels = 0;
       let totalSampledPixels = 0;
+      let eyeAreaPresent = false;
       
-      // Improve performance by sampling fewer pixels (every 6th pixel instead of 4th)
-      for (let y = 0; y < imageData.height; y += 6) {
-        for (let x = 0; x < imageData.width; x += 6) {
+      // Focus more on the upper part of the detected face area (where eyes would be)
+      for (let y = 0; y < imageData.height; y += 4) {
+        // Give more weight to the upper third of the face area (eye level)
+        const isEyeLevel = y > imageData.height * 0.2 && y < imageData.height * 0.45;
+        
+        for (let x = 0; x < imageData.width; x += 4) {
           // Calculate distance from center of the sampled area
           const distFromCenter = Math.sqrt(Math.pow(x - imageData.width/2, 2) + Math.pow(y - imageData.height/2, 2));
           
@@ -54,9 +60,34 @@ export const Webcam: React.FC = () => {
             const g = data[i + 1];
             const b = data[i + 2];
             
-            // Simplified skin tone detection for better performance
+            // Skin tone detection
             if (r > 60 && g > 40 && b > 20 && r > g) {
               facePixels++;
+              
+              // Enhanced eye detection: Check for contrast patterns common in the eye area
+              if (isEyeLevel) {
+                // Look at surrounding pixels for contrast changes that indicate eyes
+                const surroundingPixels = [
+                  {x: x-4, y}, {x: x+4, y}, {x, y: y-4}, {x, y: y+4}
+                ].filter(pos => 
+                  pos.x >= 0 && pos.x < imageData.width && 
+                  pos.y >= 0 && pos.y < imageData.height
+                );
+                
+                let contrastFound = false;
+                for (const pos of surroundingPixels) {
+                  const idx = (pos.y * imageData.width + pos.x) * 4;
+                  // Check if there's significant contrast difference - common in eye areas
+                  if (Math.abs(r - data[idx]) > 30 || Math.abs(g - data[idx+1]) > 30) {
+                    contrastFound = true;
+                    break;
+                  }
+                }
+                
+                if (contrastFound) {
+                  eyeAreaPresent = true;
+                }
+              }
             }
             totalSampledPixels++;
           }
@@ -66,15 +97,17 @@ export const Webcam: React.FC = () => {
       // Calculate face detection ratio focused on close-up faces
       const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
       
-      // Lower threshold for faster detection (0.08 instead of 0.10)
-      const currentFaceDetected = faceRatio > 0.08; 
+      // Detect if a face is present
+      const currentFaceDetected = faceRatio > 0.08;
       
-      // Make detection more responsive by requiring fewer consecutive detections
+      // Detect if the person is looking at the camera based on face and eye detection
+      const currentlyLookingAtCamera = currentFaceDetected && eyeAreaPresent;
+      
+      // Face detection with consecutive checks for stability
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
         consecutiveNonDetectionsRef.current = 0;
         
-        // Only need 2 consecutive detections for faster response
         if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
           setFaceDetected(true);
           lastFaceDetectedTime.current = Date.now();
@@ -85,19 +118,69 @@ export const Webcam: React.FC = () => {
           });
           window.dispatchEvent(event);
         }
+        
+        // Check if person is looking at the camera
+        if (currentlyLookingAtCamera) {
+          // If they're looking at the camera, update state and fire event
+          if (!isLookingAtCamera) {
+            // Only trigger looking event after consistently seeing the person looking
+            if (faceEngagementTimerRef.current) {
+              clearTimeout(faceEngagementTimerRef.current);
+            }
+            
+            faceEngagementTimerRef.current = setTimeout(() => {
+              setIsLookingAtCamera(true);
+              const engagementEvent = new CustomEvent('userEngagement', {
+                detail: { engaged: true }
+              });
+              window.dispatchEvent(engagementEvent);
+            }, 500); // Half second of consistent eye contact before triggering
+          }
+        } else {
+          // If they're not looking despite face being detected
+          if (isLookingAtCamera) {
+            if (faceEngagementTimerRef.current) {
+              clearTimeout(faceEngagementTimerRef.current);
+            }
+            
+            faceEngagementTimerRef.current = setTimeout(() => {
+              setIsLookingAtCamera(false);
+              const engagementEvent = new CustomEvent('userEngagement', {
+                detail: { engaged: false }
+              });
+              window.dispatchEvent(engagementEvent);
+            }, 800); // Give a slightly longer buffer before deciding they're not looking
+          }
+        }
       } else {
         consecutiveNonDetectionsRef.current++;
         consecutiveDetectionsRef.current = 0;
         
-        // Require more consecutive non-detections before declaring face lost
-        if (consecutiveNonDetectionsRef.current >= 5 && faceDetected) {
-          setFaceDetected(false);
+        // Clear engagement timer if we no longer detect a face
+        if (faceEngagementTimerRef.current) {
+          clearTimeout(faceEngagementTimerRef.current);
+          faceEngagementTimerRef.current = null;
+        }
+        
+        // If we don't see a face for several frames, update states
+        if (consecutiveNonDetectionsRef.current >= 5) {
+          if (faceDetected) {
+            setFaceDetected(false);
+            
+            // Dispatch custom event for face lost
+            const event = new CustomEvent('faceDetected', { 
+              detail: { detected: false } 
+            });
+            window.dispatchEvent(event);
+          }
           
-          // Dispatch custom event for face lost
-          const event = new CustomEvent('faceDetected', { 
-            detail: { detected: false } 
-          });
-          window.dispatchEvent(event);
+          if (isLookingAtCamera) {
+            setIsLookingAtCamera(false);
+            const engagementEvent = new CustomEvent('userEngagement', {
+              detail: { engaged: false }
+            });
+            window.dispatchEvent(engagementEvent);
+          }
         }
       }
       
@@ -107,6 +190,7 @@ export const Webcam: React.FC = () => {
         if (elapsed > 3000 && consecutiveNonDetectionsRef.current > 8) {
           // Person likely left - reset face detection
           setFaceDetected(false);
+          setIsLookingAtCamera(false);
           lastFaceDetectedTime.current = null;
           
           // Dispatch custom event for face lost
@@ -114,6 +198,11 @@ export const Webcam: React.FC = () => {
             detail: { detected: false } 
           });
           window.dispatchEvent(event);
+          
+          const engagementEvent = new CustomEvent('userEngagement', {
+            detail: { engaged: false }
+          });
+          window.dispatchEvent(engagementEvent);
         }
       }
       
@@ -162,7 +251,7 @@ export const Webcam: React.FC = () => {
             // Start face detection with higher frequency for faster responsiveness
             faceDetectionInterval.current = setInterval(() => {
               detectFaces(video, canvas);
-            }, 50); // 50ms (was 100ms) - doubled the sample rate for faster detection
+            }, 50); // 50ms - higher sampling rate for better detection
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
@@ -184,6 +273,10 @@ export const Webcam: React.FC = () => {
       
       if (faceDetectionInterval.current) {
         clearInterval(faceDetectionInterval.current);
+      }
+      
+      if (faceEngagementTimerRef.current) {
+        clearTimeout(faceEngagementTimerRef.current);
       }
       
       // Emit camera inactive event
@@ -249,24 +342,32 @@ export const Webcam: React.FC = () => {
         </div>
       )}
       
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-blue-900 dark:text-blue-300 bg-white/60 dark:bg-gray-800/60 px-4 py-2 rounded-lg text-lg">
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-blue-900 dark:text-blue-300 bg-white/70 dark:bg-gray-800/70 px-4 py-2 rounded-lg text-lg font-medium backdrop-blur-sm">
         {!cameraActive 
           ? "Kamera erişimi bekleniyor..." 
           : faceDetected 
-            ? "Yüz algılandı!" 
-            : "Yüzünüzü kameraya gösteriniz"}
+            ? isLookingAtCamera
+               ? "Ekrana bakıyorsunuz!" 
+               : "Lütfen doğrudan ekrana bakınız"
+            : "Lütfen yüzünüzü kameraya gösteriniz"}
       </div>
       
-      {faceDetected && cameraActive && (
+      {faceDetected && isLookingAtCamera && cameraActive && (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
           <div className="w-48 h-48 border-4 border-green-500 dark:border-green-400 rounded-full animate-pulse opacity-70"></div>
+        </div>
+      )}
+      
+      {faceDetected && !isLookingAtCamera && cameraActive && (
+        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
+          <div className="w-48 h-48 border-4 border-yellow-500 dark:border-yellow-400 rounded-full animate-pulse opacity-70"></div>
         </div>
       )}
       
       {cameraActive && !faceDetected && (
         <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
           <div className="w-64 h-64 border-2 border-dashed border-blue-500 dark:border-blue-400 rounded-full opacity-50"></div>
-          <div className="absolute w-24 h-24 border-2 border-yellow-500 dark:border-yellow-400 rounded-full opacity-70"></div>
+          <div className="absolute w-24 h-24 border-2 border-blue-500 dark:border-blue-400 rounded-full opacity-70"></div>
         </div>
       )}
     </div>

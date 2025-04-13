@@ -1,6 +1,6 @@
 
 /**
- * Speech synthesis utilities to ensure consistent voice output across devices and browsers
+ * Speech synthesis utilities to ensure consistent voice output
  */
 
 // Tracks if voices have been loaded
@@ -19,12 +19,22 @@ export const getBestTurkishVoice = (): SpeechSynthesisVoice | null => {
   
   // First try to find a Turkish voice with more specific matching for better accuracy
   let turkishVoice = availableVoices.find(voice => 
-    voice.lang === 'tr-TR' || 
-    voice.name.toLowerCase().includes('türk') ||
-    voice.name.toLowerCase().includes('turkish')
+    voice.lang === 'tr-TR' && 
+    (voice.name.toLowerCase().includes('natural') || // Prefer natural sounding voices
+     voice.name.toLowerCase().includes('premium') ||
+     voice.name.toLowerCase().includes('enhanced'))
   );
   
-  // If no exact match, try more lenient matching
+  // If no premium voice, try any Turkish voice
+  if (!turkishVoice) {
+    turkishVoice = availableVoices.find(voice => 
+      voice.lang === 'tr-TR' || 
+      voice.name.toLowerCase().includes('türk') ||
+      voice.name.toLowerCase().includes('turkish')
+    );
+  }
+  
+  // If still no voice found, try a more lenient match
   if (!turkishVoice) {
     turkishVoice = availableVoices.find(voice => 
       voice.lang.toLowerCase().includes('tr')
@@ -98,10 +108,10 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
   // Always set Turkish language
   utterance.lang = 'tr-TR';
   
-  // Consistent speech parameters
-  utterance.rate = 0.95; // Slightly slower than default for better clarity
-  utterance.pitch = 1;   // Normal pitch
-  utterance.volume = 1;  // Full volume
+  // Optimized speech parameters for clarity and natural sound
+  utterance.rate = 1.0;  // Normal speed for clarity
+  utterance.pitch = 1.0; // Normal pitch
+  utterance.volume = 1.0; // Full volume
   
   // Try to use a Turkish voice if available
   const turkishVoice = getBestTurkishVoice();
@@ -186,8 +196,11 @@ const processSpeechQueue = () => {
     setTimeout(() => processSpeechQueue(), 100);
   };
   
-  // Fallback for browsers that don't properly fire events
-  const estimatedDuration = Math.min((item.text.length * 60) + 1000, 10000); // Cap at 10 seconds max
+  // More accurate fallback for browsers that don't properly fire events
+  // Calculate duration based on text length and complexity
+  const wordCount = item.text.split(/\s+/).length;
+  const estimatedDuration = Math.min(wordCount * 300 + 800, 8000); // More accurate timing based on word count
+  
   setTimeout(() => {
     if (isSpeaking) {
       isSpeaking = false;
@@ -216,7 +229,7 @@ export const cancelSpeech = (): void => {
   currentUtterance = null;
 };
 
-// Unified speech function that ensures consistent behavior across browsers
+// Optimized speech function for clear and concise messages
 export const speakText = (
   text: string, 
   options: {
@@ -233,6 +246,13 @@ export const speakText = (
     return;
   }
   
+  // Optimize text for speaking - remove redundant phrases and make it concise
+  const optimizedText = text
+    .replace(/lütfen/gi, '') // Remove unnecessary politeness
+    .replace(/üzgünüm/gi, '')
+    .replace(/,\s+/g, ' ') // Remove unnecessary commas
+    .trim();
+  
   // Cancel existing speech to prevent overlaps
   if (isSpeaking || window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel();
@@ -241,7 +261,7 @@ export const speakText = (
   }
   
   // Add to queue and process
-  speechQueue.push({text, options});
+  speechQueue.push({text: optimizedText || text, options});
   processSpeechQueue();
 };
 
@@ -252,7 +272,7 @@ export default {
   speakText,
   initSpeechSynthesis,
   getBestTurkishVoice,
-  isCurrentlySpeaking: isCurrentlySpeaking,
+  isCurrentlySpeaking,
   cancelSpeech,
   clearSpeechQueue
 };

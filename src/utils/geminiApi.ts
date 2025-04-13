@@ -10,17 +10,18 @@ export interface GeminiResponse {
 
 export async function processVoiceCommand(text: string): Promise<GeminiResponse> {
   try {
+    // Simplified, clearer prompt for better and faster responses
     const prompt = `
-      Aşağıdaki ses komutunu analiz et ve kullanıcının ne yapmak istediğini belirle. 
+      Ses komutunu analiz et ve kullanıcının ne istediğini belirle. 
       Olası işlemler: mesem, usta-ogreticilik-belgesi, diploma, disiplin, ogrenci-alma-izni, 9-sinif-kayit, devamsizlik.
-      Kullanıcı sınıf belirtiyorsa (9, 10, 11, 12) bunu da belirle.
+      Sınıf seçimleri: 9, 10, 11, 12.
       
-      JSON formatında yanıt ver, örnek: 
+      JSON formatında kısa ve net yanıt ver: 
       {
-        "text": "Cevabın burada olacak",
+        "text": "Kısa açıklama",
         "intent": "mesem|usta-ogreticilik-belgesi|diploma|disiplin|ogrenci-alma-izni|9-sinif-kayit|devamsizlik|sinif-secimi",
-        "grade": "9|10|11|12", (eğer sınıf seçimi yapıldıysa)
-        "confidence": 0.9
+        "grade": "9|10|11|12", (sınıf seçimi yapıldıysa)
+        "confidence": 0.1-0.9 arası değer
       }
       
       Kullanıcı girdisi: "${text}"
@@ -44,7 +45,6 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
 
     const data = await response.json();
     
-    // Extract the JSON response from the text
     try {
       const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       // Find JSON in the response text
@@ -62,7 +62,7 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
       
       // Fallback if no JSON found
       return {
-        text: responseText,
+        text: 'Ne demek istediğinizi anlayamadım. Lütfen tekrar söyler misiniz?',
         intent: 'unknown',
         confidence: 0
       };
