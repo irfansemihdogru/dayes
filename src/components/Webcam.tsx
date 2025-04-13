@@ -1,5 +1,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
+import * as faceapi from 'face-api.js';
+import * as tf from '@tensorflow/tfjs';
 
 export const Webcam: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -8,68 +10,67 @@ export const Webcam: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const faceDetectionInterval = useRef<NodeJS.Timeout | null>(null);
-  const lastFaceDetectedTime = useRef<number | null>(null);
+  const modelsLoaded = useRef(false);
+  const detectionInterval = useRef<NodeJS.Timeout | null>(null);
   const consecutiveDetectionsRef = useRef(0);
   const consecutiveNonDetectionsRef = useRef(0);
   
-  // Enhanced face detection using image processing - optimized for speed
-  const detectFaces = async (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
-    if (!video.videoWidth || !video.videoHeight) return;
+  // Load face-api.js models
+  const loadModels = async () => {
+    try {
+      // Set the path to the models
+      const MODEL_URL = '/models';
+      
+      // Load models sequentially
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
+      ]);
+      
+      console.log('Face detection models loaded successfully');
+      modelsLoaded.current = true;
+    } catch (error) {
+      console.error('Error loading face detection models:', error);
+      setErrorMessage('Yüz tanıma modelleri yüklenemedi. Lütfen sayfayı yenileyin.');
+    }
+  };
+  
+  // Detect faces using face-api.js
+  const detectFaces = async () => {
+    if (!videoRef.current || !canvasRef.current || !modelsLoaded.current) return;
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    if (video.paused || video.ended || !video.videoWidth) return;
     
     try {
-      const context = canvas.getContext('2d', { willReadFrequently: true });
-      if (!context) return;
+      // Configure face detection options - only detect faces, no additional features
+      const options = new faceapi.TinyFaceDetectorOptions({
+        inputSize: 416,   // Smaller for better performance
+        scoreThreshold: 0.5  // Lower threshold for faster detection
+      });
       
-      // Draw the current video frame to the canvas
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Focus on the center area where a face is more likely to be
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const faceAreaRadius = Math.min(canvas.width, canvas.height) * 0.35; // Focus on central area
-      
-      // Get image data from the center area
-      const imageData = context.getImageData(
-        centerX - faceAreaRadius,
-        centerY - faceAreaRadius,
-        faceAreaRadius * 2,
-        faceAreaRadius * 2
+      // Detect faces
+      const detections = await faceapi.detectAllFaces(
+        video, 
+        options
       );
       
-      const data = imageData.data;
-      let facePixels = 0;
-      let totalSampledPixels = 0;
+      // Update canvas size to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       
-      // Improve performance by sampling fewer pixels (every 6th pixel instead of 4th)
-      for (let y = 0; y < imageData.height; y += 6) {
-        for (let x = 0; x < imageData.width; x += 6) {
-          // Calculate distance from center of the sampled area
-          const distFromCenter = Math.sqrt(Math.pow(x - imageData.width/2, 2) + Math.pow(y - imageData.height/2, 2));
-          
-          // Give more weight to pixels closer to center
-          if (distFromCenter <= faceAreaRadius * 0.8) { // Focus more on the very center
-            const i = (y * imageData.width + x) * 4;
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            
-            // Simplified skin tone detection for better performance
-            if (r > 60 && g > 40 && b > 20 && r > g) {
-              facePixels++;
-            }
-            totalSampledPixels++;
-          }
-        }
+      // Get canvas context
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
       
-      // Calculate face detection ratio focused on close-up faces
-      const faceRatio = totalSampledPixels > 0 ? facePixels / totalSampledPixels : 0;
+      // Check if a face is detected
+      const currentFaceDetected = detections.length > 0;
       
-      // Lower threshold for faster detection (0.08 instead of 0.10)
-      const currentFaceDetected = faceRatio > 0.08; 
-      
-      // Make detection more responsive by requiring fewer consecutive detections
+      // Handle face detection status with consecutive detections for stability
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
         consecutiveNonDetectionsRef.current = 0;
@@ -77,7 +78,6 @@ export const Webcam: React.FC = () => {
         // Only need 2 consecutive detections for faster response
         if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
           setFaceDetected(true);
-          lastFaceDetectedTime.current = Date.now();
           
           // Dispatch custom event for face detection
           const event = new CustomEvent('faceDetected', { 
@@ -87,27 +87,11 @@ export const Webcam: React.FC = () => {
         }
       } else {
         consecutiveNonDetectionsRef.current++;
-        consecutiveDetectionsRef.current = 0;
         
         // Require more consecutive non-detections before declaring face lost
-        if (consecutiveNonDetectionsRef.current >= 5 && faceDetected) {
+        if (consecutiveNonDetectionsRef.current >= 8 && faceDetected) {
+          consecutiveDetectionsRef.current = 0;
           setFaceDetected(false);
-          
-          // Dispatch custom event for face lost
-          const event = new CustomEvent('faceDetected', { 
-            detail: { detected: false } 
-          });
-          window.dispatchEvent(event);
-        }
-      }
-      
-      // Check if user has left the camera frame
-      if (faceDetected && lastFaceDetectedTime.current) {
-        const elapsed = Date.now() - lastFaceDetectedTime.current;
-        if (elapsed > 3000 && consecutiveNonDetectionsRef.current > 8) {
-          // Person likely left - reset face detection
-          setFaceDetected(false);
-          lastFaceDetectedTime.current = null;
           
           // Dispatch custom event for face lost
           const event = new CustomEvent('faceDetected', { 
@@ -122,19 +106,25 @@ export const Webcam: React.FC = () => {
     }
   };
   
-  // Initialize camera
+  // Initialize face detection and camera
   useEffect(() => {
+    // Ensure TensorFlow backend is ready
+    tf.ready().then(() => {
+      console.log('TensorFlow backend ready:', tf.getBackend());
+      // Load face detection models
+      loadModels();
+    });
+    
     const setupCamera = async () => {
-      if (!videoRef.current || !canvasRef.current) return;
+      if (!videoRef.current) return;
       
       const video = videoRef.current;
-      const canvas = canvasRef.current;
       
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 640 },  // Reduced for better performance
+            height: { ideal: 480 }, // Reduced for better performance
             facingMode: "user"
           } 
         });
@@ -155,14 +145,10 @@ export const Webcam: React.FC = () => {
           video.play().then(() => {
             console.log('Video playback started');
             
-            // Configure canvas to match video dimensions
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            
-            // Start face detection with higher frequency for faster responsiveness
-            faceDetectionInterval.current = setInterval(() => {
-              detectFaces(video, canvas);
-            }, 50); // 50ms (was 100ms) - doubled the sample rate for faster detection
+            // Start face detection at a reasonable interval (60ms = ~16fps)
+            detectionInterval.current = setInterval(() => {
+              detectFaces();
+            }, 60);
           }).catch(err => {
             console.error("Error playing video:", err);
             handleCameraError("Kamera başlatılamadı");
@@ -182,8 +168,8 @@ export const Webcam: React.FC = () => {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
       
-      if (faceDetectionInterval.current) {
-        clearInterval(faceDetectionInterval.current);
+      if (detectionInterval.current) {
+        clearInterval(detectionInterval.current);
       }
       
       // Emit camera inactive event

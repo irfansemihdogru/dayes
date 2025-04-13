@@ -41,16 +41,16 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     };
   }, []);
   
-  // Listen for the faceDetected event from the Webcam component - optimized for faster detection
+  // Listen for the faceDetected event from the Webcam component
   const handleFaceDetection = (detected: boolean) => {
     if (!detecting || !cameraActive) return;
     
     if (detected) {
-      // Increment detection count to make the detection more reliable
+      // Face detected - increment counter
       setDetectedCount(prev => {
         const newCount = prev + 1;
         
-        // Reduced the consecutive detections requirement (2 instead of 3)
+        // Only need 2 consecutive detections for faster response
         if (newCount >= 2) {
           faceDetectedRef.current = true;
           
@@ -94,7 +94,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
     
     window.addEventListener('faceDetected', handleFaceEvent);
     
-    // Reduced timeout from 15s to 10s for faster fallback
+    // Set a timeout to proceed after 8 seconds even without face detection
     detectionTimeoutRef.current = setTimeout(() => {
       if (detecting && cameraActive) {
         setDetecting(false);
@@ -105,7 +105,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
           onDetected();
         }
       }
-    }, 10000); // 10 seconds timeout (reduced from 15s)
+    }, 8000); // 8 seconds timeout
     
     return () => {
       window.removeEventListener('faceDetected', handleFaceEvent);
