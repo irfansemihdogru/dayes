@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { isCurrentlySpeaking } from '@/utils/speechUtils';
-import { useTheme } from '@/context/ThemeContext';
 
 interface VoiceRecognitionProps {
   isListening: boolean;
@@ -48,7 +47,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const isRecognitionActiveRef = useRef(false);
   const retryCountRef = useRef(0);
   const maxRetries = 3;
-  const { isDarkMode } = useTheme();
   
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
@@ -256,8 +254,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   return (
     <div className="mt-4">
       {prompt && (
-        <div className={`flex items-center justify-center mb-4 p-2 rounded-lg ${isDarkMode ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-          <p className={`text-xl font-semibold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>{prompt}</p>
+        <div className="flex items-center mb-2">
+          <p className="text-lg text-blue-800">{prompt}</p>
           <button 
             onClick={() => {
               if (prompt && 'speechSynthesis' in window) {
@@ -274,34 +272,34 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
                 window.speechSynthesis.speak(utterance);
               }
             }}
-            className={`ml-3 p-2 rounded-full ${isDarkMode ? 'bg-blue-800 hover:bg-blue-700' : 'bg-white hover:bg-gray-100'} focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors`}
+            className="ml-2 p-1 text-blue-600 hover:text-blue-800 focus:outline-none"
             aria-label="Metni sesli dinle"
           >
-            <span role="img" aria-label="sesli dinle" className="text-xl">🔊</span>
+            <span role="img" aria-label="sesli dinle">🔊</span>
           </button>
         </div>
       )}
       
-      <div className={`flex items-center justify-center p-3 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-50'} border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+      <div className="flex items-center">
         {isListening ? (
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             <div className="relative">
               <MicIcon 
-                size={28} 
-                className={`${processingVoice ? 'text-orange-500' : 'text-red-500 animate-pulse'} ${isDarkMode ? 'opacity-90' : 'opacity-100'}`}
+                size={24} 
+                className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
               />
               {processingVoice && (
                 <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
               )}
             </div>
-            <span className={`text-base ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} font-medium`}>
+            <span className="text-sm text-gray-600">
               {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
             </span>
           </div>
         ) : (
-          <div className="flex items-center space-x-3">
-            <MicOffIcon size={28} className={`${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-            <span className={`text-base ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} font-medium`}>
+          <div className="flex items-center space-x-2">
+            <MicOffIcon size={24} className="text-gray-400" />
+            <span className="text-sm text-gray-600">
               {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
             </span>
           </div>
@@ -309,38 +307,30 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       </div>
       
       {transcript && (
-        <div className={`mt-3 p-4 rounded-lg ${isDarkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-100'} border shadow-sm`}>
-          <p className={`${isDarkMode ? 'text-blue-100' : 'text-blue-900'} font-medium`} role="status" aria-live="polite">{transcript}</p>
+        <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <p className="text-gray-700" role="status" aria-live="polite">{transcript}</p>
         </div>
       )}
       
       {error && (
         <div className="mt-2">
-          <p className="text-red-500 text-sm">{error}</p>
+          <p className="text-red-700 text-sm">{error}</p>
         </div>
       )}
       
       {/* Manual input as a fallback */}
-      <form onSubmit={handleManualSubmit} className="mt-4 flex">
+      <form onSubmit={handleManualSubmit} className="mt-2 flex">
         <input
           type="text"
           value={manualInput}
           onChange={handleManualInputChange}
           placeholder="Sesli komut girmek için buraya yazın"
-          className={`flex-1 px-4 py-2 border rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            isDarkMode 
-              ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-400' 
-              : 'border-blue-300 text-gray-800'
-          }`}
+          className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           aria-label="Sesli komut giriş alanı"
         />
         <button
           type="submit"
-          className={`px-4 py-2 rounded-r-md transition-colors ${
-            isDarkMode
-              ? 'bg-blue-700 hover:bg-blue-600 text-white'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
+          className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors"
           aria-label="Komutu gönder"
         >
           Gönder

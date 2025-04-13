@@ -10,20 +10,17 @@ export interface GeminiResponse {
 
 export async function processVoiceCommand(text: string): Promise<GeminiResponse> {
   try {
-    // Optimized prompt for better response to grade selections
     const prompt = `
-      Ses komutunu analiz et ve kullanıcının ne istediğini belirle. 
+      Aşağıdaki ses komutunu analiz et ve kullanıcının ne yapmak istediğini belirle. 
       Olası işlemler: mesem, usta-ogreticilik-belgesi, diploma, disiplin, ogrenci-alma-izni, 9-sinif-kayit, devamsizlik.
-      Sınıf seçimleri: 9, 10, 11, 12.
+      Kullanıcı sınıf belirtiyorsa (9, 10, 11, 12) bunu da belirle.
       
-      ÖNEMLI: "9. sınıf", "10. sınıf", "11. sınıf", "12. sınıf" gibi ifadeler olunca SADECE "sinif-secimi" intent'i ve ilgili sınıf değeri olarak ayarla. Örneğin "11. sınıf" derse, intent="sinif-secimi" ve grade="11" olmalı.
-      
-      JSON formatında kısa ve net yanıt ver: 
+      JSON formatında yanıt ver, örnek: 
       {
-        "text": "Kısa açıklama",
+        "text": "Cevabın burada olacak",
         "intent": "mesem|usta-ogreticilik-belgesi|diploma|disiplin|ogrenci-alma-izni|9-sinif-kayit|devamsizlik|sinif-secimi",
-        "grade": "9|10|11|12", (sınıf seçimi yapıldıysa)
-        "confidence": 0.1-0.9 arası değer
+        "grade": "9|10|11|12", (eğer sınıf seçimi yapıldıysa)
+        "confidence": 0.9
       }
       
       Kullanıcı girdisi: "${text}"
@@ -47,6 +44,7 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
 
     const data = await response.json();
     
+    // Extract the JSON response from the text
     try {
       const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       // Find JSON in the response text
@@ -54,11 +52,6 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
       
       if (jsonMatch) {
         const jsonResponse = JSON.parse(jsonMatch[0]);
-        // Enhanced recognition for grade selections
-        if (jsonResponse.intent === 'sinif-secimi' && jsonResponse.grade) {
-          console.log('Grade selection detected:', jsonResponse.grade);
-        }
-        
         return {
           text: jsonResponse.text || '',
           intent: jsonResponse.intent || '',
@@ -67,16 +60,16 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
         };
       }
       
-      // Improved fallback if no JSON found
+      // Fallback if no JSON found
       return {
-        text: 'Komut anlaşılmadı.',
+        text: responseText,
         intent: 'unknown',
         confidence: 0
       };
     } catch (parseError) {
       console.error('Failed to parse Gemini response:', parseError);
       return {
-        text: 'Anlayamadım.',
+        text: 'Yanıtınızı anlamakta zorluk çekiyorum. Lütfen tekrar söyler misiniz?',
         intent: 'unknown',
         confidence: 0
       };
@@ -84,7 +77,7 @@ export async function processVoiceCommand(text: string): Promise<GeminiResponse>
   } catch (error) {
     console.error('Gemini API error:', error);
     return {
-      text: 'Ses tanımada hata oluştu.',
+      text: 'Üzgünüm, sesli komutunuzu işlemede bir hata oluştu.',
       intent: 'error',
       confidence: 0
     };
