@@ -1,6 +1,5 @@
-
 import React, { useEffect, useState, useRef } from 'react';
-import FaceRecognition from '@/components/FaceRecognition';
+import SimpleFaceDetection from '@/components/SimpleFaceDetection';
 import MainMenu from '@/components/MainMenu';
 import GradeSelection from '@/components/GradeSelection';
 import StaffDirectionResult from '@/components/StaffDirectionResult';
@@ -465,7 +464,7 @@ const Index = () => {
               </div>
               
               <div className="transition-all duration-500 fade-in mx-auto max-w-4xl">
-                <FaceRecognition 
+                <SimpleFaceDetection 
                   onDetected={handleFaceDetected}
                   isWelcomeMessagePlaying={welcomeMessagePlaying}
                 />

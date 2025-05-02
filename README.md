@@ -1,65 +1,48 @@
 
 # School Parent Guidance System
 
-This project uses face-api.js for face recognition and provides a guidance system for parents at Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi.
+Bu proje Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi için TensorFlow.js tabanlı yüz tanıma ve veli yönlendirme sistemi içerir.
 
-## Model Files Setup
+## Özellikler
 
-For the face recognition to work properly, you need to download the model files and place them in the correct location:
+- TensorFlow.js ile yüz tanıma giriş sistemi
+- Sesli komut işlevselliği
+- Çok dilli destek (Türkçe)
+- Görme engelli kullanıcılar için erişilebilirlik özellikleri
+- Dinamik form oluşturma
+- Kayıtlar için etkileşimli sözleşme okuma
+- Devamsızlık kayıtlarını görüntüleme
 
-1. Create a `models` directory in the `public` folder of your project
-2. Download the following model files from the face-api.js repository:
-   - face_landmark_68_model-weights_manifest.json
-   - face_landmark_68_model-shard1
-   - tiny_face_detector_model-weights_manifest.json
-   - tiny_face_detector_model-shard1
+## Projeyi Çalıştırma
 
-3. Place the downloaded files in the `public/models` directory
-
-You can download these files from:
-https://github.com/justadudewhohacks/face-api.js/tree/master/weights
-
-## Features
-
-- Face recognition login system
-- Voice command functionality
-- Multilingual support (Turkish)
-- Accessibility features for visually impaired users
-- Dynamic form generation
-- Interactive contract reading for registrations
-- Attendance record viewing
-
-## Running the Project
-
-1. Make sure you have installed the dependencies:
+1. Bağımlılıkları yüklediğinizden emin olun:
 ```bash
 npm install
 ```
 
-2. Start the development server:
+2. Geliştirme sunucusunu başlatın:
 ```bash
 npm run dev
 ```
 
-3. Allow camera access when prompted by the browser
+3. Tarayıcı tarafından istendiğinde kamera erişimine izin verin
 
-The server will run on port 8080 by default.
+Sunucu varsayılan olarak 8080 portunda çalışacaktır.
 
-## Usage
+## Kullanım
 
-1. Start at the welcome screen
-2. Face detection will be performed
-3. Navigate using voice commands or buttons
-4. Follow the guidance for different services
+1. Karşılama ekranında başlayın
+2. Yüz algılama gerçekleştirilecek
+3. Sesli komutlar veya düğmeler kullanarak gezinin
+4. Farklı hizmetler için yönlendirmeyi takip edin
 
-## Technologies Used
+## Kullanılan Teknolojiler
 
 - React
 - TypeScript
-- TensorFlow.js
-- Face-api.js
+- TensorFlow.js (yüz algılama için)
 - Tailwind CSS
-- Shadcn/UI Components
-- Speech Recognition API
-- Speech Synthesis API
+- Shadcn/UI Bileşenleri
+- Konuşma Tanıma API'si
+- Konuşma Sentezi API'si
 
