@@ -45,47 +45,53 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
       </CardHeader>
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {menuItems.slice(0, 3).map((item) => (
-            <Button
-              key={item.id}
-              variant="outline"
-              className={`h-16 text-lg ${
-                isDarkMode 
-                  ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
-                  : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
-              } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
-              onClick={() => {
-                // Announce selection for accessibility
-                speakText(`${item.name} seçildi`, {
-                  onEnd: () => onSelection(item.id) 
-                });
-              }}
-              aria-label={`${item.name} işlemini seçin`}
-            >
-              {item.name}
-            </Button>
-          ))}
+          {/* First three menu items on the left */}
+          <div className="space-y-4">
+            {menuItems.slice(0, 3).map((item) => (
+              <Button
+                key={item.id}
+                variant="outline"
+                className={`w-full h-16 text-lg ${
+                  isDarkMode 
+                    ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
+                    : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
+                } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
+                onClick={() => {
+                  // Announce selection for accessibility
+                  speakText(`${item.name} seçildi`, {
+                    onEnd: () => onSelection(item.id) 
+                  });
+                }}
+                aria-label={`${item.name} işlemini seçin`}
+              >
+                {item.name}
+              </Button>
+            ))}
+          </div>
           
-          {menuItems.slice(3).map((item) => (
-            <Button
-              key={item.id}
-              variant="outline"
-              className={`h-16 text-lg ${
-                isDarkMode 
-                  ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
-                  : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
-              } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
-              onClick={() => {
-                // Announce selection for accessibility
-                speakText(`${item.name} seçildi`, {
-                  onEnd: () => onSelection(item.id) 
-                });
-              }}
-              aria-label={`${item.name} işlemini seçin`}
-            >
-              {item.name}
-            </Button>
-          ))}
+          {/* Last three menu items on the right */}
+          <div className="space-y-4">
+            {menuItems.slice(3).map((item) => (
+              <Button
+                key={item.id}
+                variant="outline"
+                className={`w-full h-16 text-lg ${
+                  isDarkMode 
+                    ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
+                    : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
+                } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
+                onClick={() => {
+                  // Announce selection for accessibility
+                  speakText(`${item.name} seçildi`, {
+                    onEnd: () => onSelection(item.id) 
+                  });
+                }}
+                aria-label={`${item.name} işlemini seçin`}
+              >
+                {item.name}
+              </Button>
+            ))}
+          </div>
         </div>
       </CardContent>
     </Card>

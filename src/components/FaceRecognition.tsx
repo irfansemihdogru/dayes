@@ -42,59 +42,45 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
   }, []);
   
   // Listen for the faceDetected event from the Webcam component
-  const handleFaceDetection = (detected: boolean) => {
-    if (!detecting || !cameraActive) return;
-    
-    if (detected) {
-      // Face detected - increment counter
-      setDetectedCount(prev => {
-        const newCount = prev + 1;
-        
-        // Only need 2 consecutive detections for faster response
-        if (newCount >= 2) {
-          faceDetectedRef.current = true;
-          
-          // Only call onDetected if welcome message is not playing
-          if (!isWelcomeMessagePlaying) {
-            setDetecting(false);
-            if (detectionTimeoutRef.current) {
-              clearTimeout(detectionTimeoutRef.current);
-            }
-            onDetected();
-          }
-          return newCount;
-        }
-        return newCount;
-      });
-    } else {
-      // Reset the counter if face is lost
-      setDetectedCount(0);
-    }
-  };
-
-  // Check if welcome message has finished playing and we have already detected a face
-  useEffect(() => {
-    if (faceDetectedRef.current && !isWelcomeMessagePlaying && detecting) {
-      setDetecting(false);
-      if (detectionTimeoutRef.current) {
-        clearTimeout(detectionTimeoutRef.current);
-      }
-      onDetected();
-    }
-  }, [isWelcomeMessagePlaying, onDetected, detecting]);
-
-  // Use a global event listener for face detection events
   useEffect(() => {
     const handleFaceEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
+      if (!detecting || !cameraActive) return;
+      
       if (customEvent.detail && customEvent.detail.detected !== undefined) {
-        handleFaceDetection(customEvent.detail.detected);
+        const detected = customEvent.detail.detected;
+        
+        if (detected) {
+          // Face detected - increment counter
+          setDetectedCount(prev => {
+            const newCount = prev + 1;
+            
+            // Only need 2 consecutive detections for faster response
+            if (newCount >= 2) {
+              faceDetectedRef.current = true;
+              
+              // Only call onDetected if welcome message is not playing
+              if (!isWelcomeMessagePlaying) {
+                setDetecting(false);
+                if (detectionTimeoutRef.current) {
+                  clearTimeout(detectionTimeoutRef.current);
+                }
+                onDetected();
+              }
+              return newCount;
+            }
+            return newCount;
+          });
+        } else {
+          // Reset the counter if face is lost
+          setDetectedCount(0);
+        }
       }
     };
     
     window.addEventListener('faceDetected', handleFaceEvent);
     
-    // Set a timeout to proceed after 8 seconds even without face detection
+    // Set a fallback timeout to proceed after 8 seconds even without face detection
     detectionTimeoutRef.current = setTimeout(() => {
       if (detecting && cameraActive) {
         setDetecting(false);
@@ -114,6 +100,17 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({ onDetected, isWelcome
       }
     };
   }, [detecting, onDetected, cameraActive, isWelcomeMessagePlaying]);
+
+  // Check if welcome message has finished playing and we have already detected a face
+  useEffect(() => {
+    if (faceDetectedRef.current && !isWelcomeMessagePlaying && detecting) {
+      setDetecting(false);
+      if (detectionTimeoutRef.current) {
+        clearTimeout(detectionTimeoutRef.current);
+      }
+      onDetected();
+    }
+  }, [isWelcomeMessagePlaying, onDetected, detecting]);
 
   return (
     <Card className={`w-full max-w-5xl mx-auto ${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>

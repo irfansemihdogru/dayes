@@ -148,6 +148,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   const { isDarkMode } = useTheme();
   const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState<number>(-1);
   const [isReading, setIsReading] = useState(false);
+  const [readingFinished, setReadingFinished] = useState(false);
   const contractParagraphs = contractText.split('\n');
   const scrollRef = useRef<HTMLDivElement>(null);
   
@@ -205,6 +206,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     });
     
     setIsReading(false);
+    setReadingFinished(true);
   };
   
   return (
@@ -245,7 +247,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         <Button 
           className={`${isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
           onClick={onComplete}
-          disabled={isReading}
+          disabled={isReading && !readingFinished}
         >
           {isReading ? "Sözleşme Okunuyor..." : "Sözleşmeyi Anladım"}
         </Button>

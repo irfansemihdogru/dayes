@@ -70,8 +70,10 @@ const DevamsizlikTable: React.FC<DevamsizlikTableProps> = ({ name, surname, onTi
   const [absenceData, setAbsenceData] = useState<AbsenceItem[]>([]);
   const [excusedCount, setExcusedCount] = useState(0);
   const [unexcusedCount, setUnexcusedCount] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(30);
   const { isDarkMode } = useTheme();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     // Generate random absence data
@@ -118,9 +120,25 @@ const DevamsizlikTable: React.FC<DevamsizlikTableProps> = ({ name, surname, onTi
       onTimeout();
     }, 30000);
     
+    // Start the countdown
+    countdownRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          if (countdownRef.current) {
+            clearInterval(countdownRef.current);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+      }
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
       }
     };
   }, [name, surname, onTimeout]);
@@ -167,7 +185,7 @@ const DevamsizlikTable: React.FC<DevamsizlikTableProps> = ({ name, surname, onTi
           
           <div className="mt-4 text-center">
             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Bu ekran 30 saniye sonra ana menüye geri dönecektir.
+              Bu ekran {timeLeft} saniye sonra ana menüye geri dönecektir.
             </p>
           </div>
         </div>

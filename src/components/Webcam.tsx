@@ -2,8 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as tf from '@tensorflow/tfjs';
 
-// Dynamically import face-api.js to avoid issues
-let faceapi: any;
+// Create global variable for face-api to avoid issues with dynamic imports
+let faceapi: any = null;
 
 export const Webcam: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -16,255 +16,196 @@ export const Webcam: React.FC = () => {
   const detectionInterval = useRef<NodeJS.Timeout | null>(null);
   const consecutiveDetectionsRef = useRef(0);
   const consecutiveNonDetectionsRef = useRef(0);
-  const faceApiLoaded = useRef(false);
 
-  // Load face-api.js dynamically
+  // Load face-api.js dynamically to avoid SSR issues
   useEffect(() => {
     const loadFaceApi = async () => {
       try {
-        // Dynamic import of face-api.js
-        const faceApiModule = await import('face-api.js');
-        faceapi = faceApiModule;
-        faceApiLoaded.current = true;
-        console.log('Face API library loaded successfully');
+        console.log('Loading face-api.js...');
+        // We need to ensure TensorFlow is initialized first
+        await tf.ready();
+        console.log('TensorFlow backend ready:', tf.getBackend());
         
-        // Now that face-api is loaded, we can load models
-        loadModels();
+        // Then dynamically import face-api
+        const module = await import('face-api.js');
+        faceapi = module;
+        console.log('Face API loaded successfully');
+        
+        // Now load the models
+        await loadModels();
       } catch (error) {
         console.error('Failed to load face-api.js:', error);
         setErrorMessage('Yüz tanıma kütüphanesi yüklenemedi. Lütfen sayfayı yenileyin.');
       }
     };
+
+    loadFaceApi();
     
-    // Ensure TensorFlow backend is ready
-    tf.ready().then(() => {
-      console.log('TensorFlow backend ready:', tf.getBackend());
-      loadFaceApi();
-    });
+    // Cleanup function
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (detectionInterval.current) {
+        clearInterval(detectionInterval.current);
+      }
+    };
   }, []);
 
   // Load face-api.js models
   const loadModels = async () => {
-    if (!faceApiLoaded.current) {
-      console.warn('Face API not yet loaded, skipping model loading');
-      return;
-    }
-    
     try {
-      // Set the path to the models
+      if (!faceapi) {
+        console.warn('Face API not yet loaded');
+        return;
+      }
+      
+      console.log('Loading face detection models...');
+      
+      // Set path to models
       const MODEL_URL = '/models';
 
-      // Load models sequentially
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      ]);
+      // Load face detection models sequentially
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+      console.log('Tiny face detector model loaded');
+      
+      // Load face landmarks model
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      console.log('Face landmark model loaded');
 
-      console.log('Face detection models loaded successfully');
+      console.log('All models loaded successfully');
       modelsLoaded.current = true;
       
-      // Now that models are loaded, we can start the camera
-      setupCamera();
+      // Start camera once models are loaded
+      await setupCamera();
     } catch (error) {
       console.error('Error loading face detection models:', error);
-      setErrorMessage('Yüz tanıma modelleri yüklenemedi. Lütfen sayfayı yenileyin.');
+      setErrorMessage('Yüz tanıma modelleri yüklenemedi: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+
+  // Set up camera
+  const setupCamera = async () => {
+    if (!videoRef.current) return;
+
+    try {
+      console.log('Setting up camera...');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user',
+        },
+      });
+
+      videoRef.current.srcObject = stream;
+      streamRef.current = stream;
+      setCameraActive(true);
+
+      // Emit camera status event
+      window.dispatchEvent(new CustomEvent('cameraStatus', {
+        detail: { active: true },
+      }));
+
+      // Start detection when video is ready
+      videoRef.current.onloadedmetadata = () => {
+        videoRef.current?.play()
+          .then(() => {
+            console.log('Video playback started');
+            
+            // Start face detection at a reasonable interval
+            detectionInterval.current = setInterval(() => {
+              if (modelsLoaded.current) {
+                detectFaces();
+              }
+            }, 100);  // 10 fps
+          })
+          .catch((error) => {
+            console.error('Error playing video:', error);
+            setErrorMessage('Kamera başlatılamadı: ' + error.message);
+          });
+      };
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setErrorMessage('Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol ediniz.');
+      
+      // Emit camera error event
+      window.dispatchEvent(new CustomEvent('cameraStatus', {
+        detail: { active: false },
+      }));
     }
   };
 
   // Detect faces using face-api.js
   const detectFaces = async () => {
-    if (!videoRef.current || !canvasRef.current || !modelsLoaded.current || !faceApiLoaded.current) return;
-
+    if (!videoRef.current || !canvasRef.current || !faceapi || !modelsLoaded.current) return;
+    
     const video = videoRef.current;
     const canvas = canvasRef.current;
-
+    
     if (video.paused || video.ended || !video.videoWidth) return;
-
+    
     try {
       // Configure face detection options
       const options = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 416, // Smaller for better performance
-        scoreThreshold: 0.5, // Lower threshold for faster detection
+        inputSize: 416,
+        scoreThreshold: 0.5
       });
-
-      // Detect faces with landmarks
-      const detections = await faceapi
-        .detectAllFaces(video, options)
+      
+      // Detect all faces with landmarks
+      const detections = await faceapi.detectAllFaces(video, options)
         .withFaceLandmarks();
-
-      // Update canvas size to match video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      // Get canvas context
+      
+      // Resize canvas to match video dimensions
+      const displaySize = { width: video.videoWidth, height: video.videoHeight };
+      faceapi.matchDimensions(canvas, displaySize);
+      
+      // Get detection results scaled to video size
+      const resizedDetections = faceapi.resizeResults(detections, displaySize);
+      
+      // Clear previous drawings
       const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
       // Check if a face is detected
-      const currentFaceDetected = detections.length > 0;
-
+      const currentFaceDetected = resizedDetections.length > 0;
+      
       if (currentFaceDetected) {
-        // Get the first detected face and its landmarks
-        const face = detections[0];
-        const landmarks = face.landmarks;
-
-        // Get the positions of the eyes
-        const leftEye = landmarks.getLeftEye();
-        const rightEye = landmarks.getRightEye();
-
-        // Calculate the vertical difference between the eyes
-        const eyeLevelDiff = Math.abs(leftEye[0].y - rightEye[0].y);
-        const isFacingCamera = eyeLevelDiff < 10; // Threshold: Eyes should be nearly aligned horizontally
-
-        if (isFacingCamera) {
-          consecutiveDetectionsRef.current++;
-          consecutiveNonDetectionsRef.current = 0;
-
-          // Only need 2 consecutive detections for faster response
-          if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
-            setFaceDetected(true);
-
-            // Dispatch custom event for face detection
-            const event = new CustomEvent('faceDetected', {
-              detail: { detected: true },
-            });
-            window.dispatchEvent(event);
+        consecutiveDetectionsRef.current++;
+        consecutiveNonDetectionsRef.current = 0;
+        
+        if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
+          setFaceDetected(true);
+          
+          // Dispatch face detected event
+          window.dispatchEvent(new CustomEvent('faceDetected', {
+            detail: { detected: true }
+          }));
+          
+          // Draw face detection results if a face is detected
+          if (ctx) {
+            faceapi.draw.drawDetections(canvas, resizedDetections);
+            faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
           }
-        } else {
-          consecutiveNonDetectionsRef.current++;
-          consecutiveDetectionsRef.current = 0;
         }
       } else {
         consecutiveNonDetectionsRef.current++;
         consecutiveDetectionsRef.current = 0;
-      }
-
-      // Require more consecutive non-detections before declaring face lost
-      if (consecutiveNonDetectionsRef.current >= 8 && faceDetected) {
-        consecutiveDetectionsRef.current = 0;
-        setFaceDetected(false);
-
-        // Dispatch custom event for face lost
-        const event = new CustomEvent('faceDetected', {
-          detail: { detected: false },
-        });
-        window.dispatchEvent(event);
-      }
-
-      // Optionally draw the detected faces and landmarks on the canvas for visual feedback
-      if (ctx && currentFaceDetected) {
-        faceapi.draw.drawDetections(canvas, detections);
-        faceapi.draw.drawFaceLandmarks(canvas, detections);
+        
+        // Require more consecutive non-detections before declaring face lost
+        if (consecutiveNonDetectionsRef.current >= 8 && faceDetected) {
+          setFaceDetected(false);
+          
+          // Dispatch face lost event
+          window.dispatchEvent(new CustomEvent('faceDetected', {
+            detail: { detected: false }
+          }));
+        }
       }
     } catch (error) {
       console.error('Error during face detection:', error);
-      setErrorMessage('Yüz algılama sırasında bir hata oluştu.');
     }
   };
-
-  // Initialize face detection and camera
-  const setupCamera = async () => {
-    if (!videoRef.current) return;
-
-    const video = videoRef.current;
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 }, // Reduced for better performance
-          height: { ideal: 480 }, // Reduced for better performance
-          facingMode: 'user',
-        },
-      });
-
-      streamRef.current = stream;
-      video.srcObject = stream;
-
-      // Set camera as active
-      setCameraActive(true);
-
-      // Emit camera status event
-      const event = new CustomEvent('cameraStatus', {
-        detail: { active: true },
-      });
-      window.dispatchEvent(event);
-
-      video.onloadedmetadata = () => {
-        video
-          .play()
-          .then(() => {
-            console.log('Video playback started');
-
-            // Start face detection at a reasonable interval (60ms = ~16fps)
-            detectionInterval.current = setInterval(() => {
-              detectFaces();
-            }, 60);
-          })
-          .catch((err) => {
-            console.error('Error playing video:', err);
-            handleCameraError('Kamera başlatılamadı');
-          });
-      };
-    } catch (err) {
-      console.error('Error accessing the camera:', err);
-      handleCameraError('Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol ediniz.');
-    }
-  };
-
-  const handleCameraError = (message: string) => {
-    setErrorMessage(message);
-    setCameraActive(false);
-
-    // Emit camera status event
-    const event = new CustomEvent('cameraStatus', {
-      detail: { active: false },
-    });
-    window.dispatchEvent(event);
-  };
-
-  // Check camera status periodically
-  useEffect(() => {
-    const checkCameraStatus = setInterval(() => {
-      if (streamRef.current) {
-        const tracks = streamRef.current.getVideoTracks();
-        const isActive = tracks.length > 0 && tracks[0].enabled && tracks[0].readyState === 'live';
-
-        if (cameraActive !== isActive) {
-          setCameraActive(isActive);
-
-          // Emit camera status event
-          const event = new CustomEvent('cameraStatus', {
-            detail: { active: isActive },
-          });
-          window.dispatchEvent(event);
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(checkCameraStatus);
-  }, [cameraActive]);
-
-  // Clean up on component unmount
-  useEffect(() => {
-    return () => {
-      // Clean up
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-
-      if (detectionInterval.current) {
-        clearInterval(detectionInterval.current);
-      }
-
-      // Emit camera inactive event
-      const event = new CustomEvent('cameraStatus', {
-        detail: { active: false },
-      });
-      window.dispatchEvent(event);
-    };
-  }, []);
 
   return (
     <div className="w-full h-full relative">
@@ -279,7 +220,7 @@ export const Webcam: React.FC = () => {
       <canvas
         ref={canvasRef}
         className="absolute top-0 left-0 w-full h-full"
-        style={{ display: 'none' }} // Hidden for visual feedback, can be shown if needed
+        style={{ display: 'none' }} // Hidden for cleaner UI
       />
 
       {errorMessage && (

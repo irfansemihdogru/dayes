@@ -27,7 +27,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, audioEnabled, toggle
               </div>
             </div>
             <CardTitle className="text-3xl font-bold">
-              Yıldırım Mesleki ve Teknik Anadolu Lisesi
+              Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi
             </CardTitle>
             <p className="text-xl mt-2 text-blue-100">Veli Yönlendirme Sistemi</p>
           </CardHeader>
@@ -92,7 +92,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart, audioEnabled, toggle
             
             <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
               <p>Bu sistem görme ve işitme engelli kullanıcılar için erişilebilirlik desteklerine sahiptir</p>
-              <p className="mt-2">© 2025 Yıldırım Mesleki ve Teknik Anadolu Lisesi</p>
+              <p className="mt-2">© 2025 Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi</p>
             </div>
           </CardContent>
         </Card>
