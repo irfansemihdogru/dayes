@@ -1,7 +1,9 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import * as faceapi from 'face-api.js';
 import * as tf from '@tensorflow/tfjs';
+
+// Alternative import approach for face-api.js
+let faceapi: any;
 
 export const Webcam: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -14,9 +16,40 @@ export const Webcam: React.FC = () => {
   const detectionInterval = useRef<NodeJS.Timeout | null>(null);
   const consecutiveDetectionsRef = useRef(0);
   const consecutiveNonDetectionsRef = useRef(0);
+  const faceApiLoaded = useRef(false);
+
+  // Load face-api.js dynamically
+  useEffect(() => {
+    const loadFaceApi = async () => {
+      try {
+        // Dynamic import of face-api.js
+        const faceApiModule = await import('face-api.js');
+        faceapi = faceApiModule;
+        faceApiLoaded.current = true;
+        console.log('Face API library loaded successfully');
+        
+        // Now that face-api is loaded, we can load models
+        loadModels();
+      } catch (error) {
+        console.error('Failed to load face-api.js:', error);
+        setErrorMessage('Yüz tanıma kütüphanesi yüklenemedi. Lütfen sayfayı yenileyin.');
+      }
+    };
+    
+    // Ensure TensorFlow backend is ready
+    tf.ready().then(() => {
+      console.log('TensorFlow backend ready:', tf.getBackend());
+      loadFaceApi();
+    });
+  }, []);
 
   // Load face-api.js models
   const loadModels = async () => {
+    if (!faceApiLoaded.current) {
+      console.warn('Face API not yet loaded, skipping model loading');
+      return;
+    }
+    
     try {
       // Set the path to the models
       const MODEL_URL = '/models';
@@ -29,6 +62,9 @@ export const Webcam: React.FC = () => {
 
       console.log('Face detection models loaded successfully');
       modelsLoaded.current = true;
+      
+      // Now that models are loaded, we can start the camera
+      setupCamera();
     } catch (error) {
       console.error('Error loading face detection models:', error);
       setErrorMessage('Yüz tanıma modelleri yüklenemedi. Lütfen sayfayı yenileyin.');
@@ -37,7 +73,7 @@ export const Webcam: React.FC = () => {
 
   // Detect faces using face-api.js
   const detectFaces = async () => {
-    if (!videoRef.current || !canvasRef.current || !modelsLoaded.current) return;
+    if (!videoRef.current || !canvasRef.current || !modelsLoaded.current || !faceApiLoaded.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -129,81 +165,53 @@ export const Webcam: React.FC = () => {
   };
 
   // Initialize face detection and camera
-  useEffect(() => {
-    // Ensure TensorFlow backend is ready
-    tf.ready().then(() => {
-      console.log('TensorFlow backend ready:', tf.getBackend());
-      // Load face detection models
-      loadModels();
-    });
+  const setupCamera = async () => {
+    if (!videoRef.current) return;
 
-    const setupCamera = async () => {
-      if (!videoRef.current) return;
+    const video = videoRef.current;
 
-      const video = videoRef.current;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 }, // Reduced for better performance
+          height: { ideal: 480 }, // Reduced for better performance
+          facingMode: 'user',
+        },
+      });
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 640 }, // Reduced for better performance
-            height: { ideal: 480 }, // Reduced for better performance
-            facingMode: 'user',
-          },
-        });
+      streamRef.current = stream;
+      video.srcObject = stream;
 
-        streamRef.current = stream;
-        video.srcObject = stream;
+      // Set camera as active
+      setCameraActive(true);
 
-        // Set camera as active
-        setCameraActive(true);
-
-        // Emit camera status event
-        const event = new CustomEvent('cameraStatus', {
-          detail: { active: true },
-        });
-        window.dispatchEvent(event);
-
-        video.onloadedmetadata = () => {
-          video
-            .play()
-            .then(() => {
-              console.log('Video playback started');
-
-              // Start face detection at a reasonable interval (60ms = ~16fps)
-              detectionInterval.current = setInterval(() => {
-                detectFaces();
-              }, 60);
-            })
-            .catch((err) => {
-              console.error('Error playing video:', err);
-              handleCameraError('Kamera başlatılamadı');
-            });
-        };
-      } catch (err) {
-        console.error('Error accessing the camera:', err);
-        handleCameraError('Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol ediniz.');
-      }
-    };
-
-    setupCamera();
-
-    return () => {
-      // Clean up
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-
-      if (detectionInterval.current) {
-        clearInterval(detectionInterval.current);
-      }
-
-      // Emit camera inactive event
+      // Emit camera status event
       const event = new CustomEvent('cameraStatus', {
-        detail: { active: false },
+        detail: { active: true },
       });
       window.dispatchEvent(event);
-    };
-  }, []);
+
+      video.onloadedmetadata = () => {
+        video
+          .play()
+          .then(() => {
+            console.log('Video playback started');
+
+            // Start face detection at a reasonable interval (60ms = ~16fps)
+            detectionInterval.current = setInterval(() => {
+              detectFaces();
+            }, 60);
+          })
+          .catch((err) => {
+            console.error('Error playing video:', err);
+            handleCameraError('Kamera başlatılamadı');
+          });
+      };
+    } catch (err) {
+      console.error('Error accessing the camera:', err);
+      handleCameraError('Kamera erişilemez durumda. Lütfen kamera izinlerini kontrol ediniz.');
+    }
+  };
 
   const handleCameraError = (message: string) => {
     setErrorMessage(message);
@@ -237,6 +245,26 @@ export const Webcam: React.FC = () => {
 
     return () => clearInterval(checkCameraStatus);
   }, [cameraActive]);
+
+  // Clean up on component unmount
+  useEffect(() => {
+    return () => {
+      // Clean up
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      if (detectionInterval.current) {
+        clearInterval(detectionInterval.current);
+      }
+
+      // Emit camera inactive event
+      const event = new CustomEvent('cameraStatus', {
+        detail: { active: false },
+      });
+      window.dispatchEvent(event);
+    };
+  }, []);
 
   return (
     <div className="w-full h-full relative">
