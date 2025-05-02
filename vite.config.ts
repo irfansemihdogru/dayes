@@ -18,5 +18,11 @@ export default defineConfig({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
+    rollupOptions: {
+      external: [],
+    },
+  },
+  server: {
+    port: 8080
   },
 });

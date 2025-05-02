@@ -9,12 +9,10 @@ For the face recognition to work properly, you need to download the model files 
 
 1. Create a `models` directory in the `public` folder of your project
 2. Download the following model files from the face-api.js repository:
-   - face_landmark_68.weights
-   - face_landmark_68_model.bin
-   - face_landmark_68_tiny.weights
-   - face_landmark_68_tiny_model.bin
-   - tiny_face_detector.weights
-   - tiny_face_detector_model.bin
+   - face_landmark_68_model-weights_manifest.json
+   - face_landmark_68_model-shard1
+   - tiny_face_detector_model-weights_manifest.json
+   - tiny_face_detector_model-shard1
 
 3. Place the downloaded files in the `public/models` directory
 
@@ -34,3 +32,5 @@ npm run dev
 ```
 
 3. Allow camera access when prompted by the browser
+
+The server will run on port 8080 by default.
