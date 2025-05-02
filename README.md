@@ -1,6 +1,5 @@
 
-# School Parent Guidance System
-
+# DAYES
 Bu proje Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi için TensorFlow.js tabanlı yüz tanıma ve veli yönlendirme sistemi içerir.
 
 ## Özellikler
