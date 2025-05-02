@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as tf from '@tensorflow/tfjs';
 
-// Alternative import approach for face-api.js
+// Dynamically import face-api.js to avoid issues
 let faceapi: any;
 
 export const Webcam: React.FC = () => {
