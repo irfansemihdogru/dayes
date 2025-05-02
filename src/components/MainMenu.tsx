@@ -15,12 +15,12 @@ interface MainMenuProps {
 }
 
 const menuItems: MenuItem[] = [
-  { id: 'mesem', name: 'Mesem' },
-  { id: 'usta-ogreticilik-belgesi', name: 'Usta Öğreticilik Belgesi' },
-  { id: 'diploma', name: 'Diploma' },
-  { id: 'disiplin', name: 'Disiplin' },
-  { id: 'ogrenci-alma-izni', name: 'Öğrenciyi Okuldan Alma İzni' },
-  { id: '9-sinif-kayit', name: '9.sınıf Kayıt Yönlendirme' },
+  { id: '9-sinif-kayit', name: '1-9.Sınıf Kayıt İşlemleri' },
+  { id: 'ogrenci-alma-izni', name: '2-Öğrenci İzin İşlemleri' },
+  { id: 'mesem', name: '3-Mesem Öğrenci İşlemleri' },
+  { id: 'devamsizlik', name: '4-Devamsızlık İşlemleri' },
+  { id: 'disiplin', name: '5-Disiplin İşlemleri' },
+  { id: 'diploma', name: '6-Diploma İşlemleri' },
 ];
 
 const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
@@ -45,7 +45,28 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
       </CardHeader>
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {menuItems.map((item) => (
+          {menuItems.slice(0, 3).map((item) => (
+            <Button
+              key={item.id}
+              variant="outline"
+              className={`h-16 text-lg ${
+                isDarkMode 
+                  ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
+                  : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
+              } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
+              onClick={() => {
+                // Announce selection for accessibility
+                speakText(`${item.name} seçildi`, {
+                  onEnd: () => onSelection(item.id) 
+                });
+              }}
+              aria-label={`${item.name} işlemini seçin`}
+            >
+              {item.name}
+            </Button>
+          ))}
+          
+          {menuItems.slice(3).map((item) => (
             <Button
               key={item.id}
               variant="outline"

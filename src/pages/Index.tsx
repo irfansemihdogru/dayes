@@ -6,6 +6,10 @@ import GradeSelection from '@/components/GradeSelection';
 import StaffDirectionResult from '@/components/StaffDirectionResult';
 import VoiceRecognition from '@/components/VoiceRecognition';
 import StartScreen from '@/components/StartScreen';
+import DevamsizlikForm from '@/components/DevamsizlikForm';
+import DevamsizlikTable from '@/components/DevamsizlikTable';
+import RegistrationContract from '@/components/RegistrationContract';
+import RegistrationForm from '@/components/RegistrationForm';
 import { processVoiceCommand } from '@/utils/geminiApi';
 import { Volume2Icon, VolumeXIcon, School } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
@@ -16,7 +20,11 @@ type AppState =
   | 'face-recognition'
   | 'main-menu'
   | 'grade-selection'
-  | 'staff-direction';
+  | 'staff-direction'
+  | 'devamsizlik-form'
+  | 'devamsizlik-table'
+  | 'registration-contract'
+  | 'registration-form';
 
 interface StaffMapping {
   [key: string]: string;
@@ -50,7 +58,7 @@ const serviceToStaff: StaffMapping = {
   'usta-ogreticilik-belgesi': 'YENER HANCI',
   'diploma': 'YENER HANCI',
   'disiplin': 'OKAN KARAHAN',
-  '9-sinif-kayit': 'ERDEM ÜÇER',
+  'ogrenci-alma-izni': 'OKAN KARAHAN',
 };
 
 const Index = () => {
@@ -62,6 +70,10 @@ const Index = () => {
   const [voicePrompt, setVoicePrompt] = useState<string>('');
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [welcomeMessagePlaying, setWelcomeMessagePlaying] = useState(false);
+  // Devamsızlık and Registration form states
+  const [studentName, setStudentName] = useState('');
+  const [studentSurname, setStudentSurname] = useState('');
+  
   const appInitialized = useRef(false);
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -127,7 +139,7 @@ const Index = () => {
     // Cancel any ongoing speech first
     cancelSpeech();
     
-    const welcomeText = "Yıldırım Mesleki ve Teknik Anadolu Lisesi Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
+    const welcomeText = "Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
     
     speakText(welcomeText, {
       onStart: () => {
@@ -238,7 +250,11 @@ const Index = () => {
         }
         
         case 'staff-direction':
-          // No need for microphone in staff direction state
+        case 'devamsizlik-form':
+        case 'devamsizlik-table':
+        case 'registration-contract':
+        case 'registration-form':
+          // No need for microphone in these states
           setIsListening(false);
           break;
       }
@@ -287,7 +303,29 @@ const Index = () => {
     
     setSelectedService(service);
     
+    if (service === 'devamsizlik') {
+      setAppState('devamsizlik-form');
+      return;
+    }
+    
+    if (service === '9-sinif-kayit') {
+      setAppState('registration-contract');
+      return;
+    }
+    
     if (service === 'disiplin') {
+      setDirectedStaff('OKAN KARAHAN');
+      setAppState('staff-direction');
+      return;
+    }
+    
+    if (service === 'diploma') {
+      setDirectedStaff('YENER HANCI');
+      setAppState('staff-direction');
+      return;
+    }
+    
+    if (service === 'ogrenci-alma-izni') {
       setDirectedStaff('OKAN KARAHAN');
       setAppState('staff-direction');
       return;
@@ -315,6 +353,25 @@ const Index = () => {
     }
   };
   
+  const handleDevamsizlikFormSubmit = (name: string, surname: string) => {
+    setStudentName(name);
+    setStudentSurname(surname);
+    setAppState('devamsizlik-table');
+  };
+  
+  const handleDevamsizlikTimeout = () => {
+    setAppState('main-menu');
+  };
+  
+  const handleContractComplete = () => {
+    setAppState('registration-form');
+  };
+  
+  const handleRegistrationFormSubmit = () => {
+    // Reset to main menu after registration
+    setAppState('main-menu');
+  };
+  
   const handleVoiceResult = async (text: string) => {
     try {
       // Reset timeout when a voice command is received
@@ -328,7 +385,7 @@ const Index = () => {
       
       if (appState === 'main-menu') {
         if (result.intent) {
-          if (['mesem', 'usta-ogreticilik-belgesi', 'diploma', 'disiplin', 'ogrenci-alma-izni', '9-sinif-kayit'].includes(result.intent)) {
+          if (['mesem', 'usta-ogreticilik-belgesi', 'diploma', 'disiplin', 'ogrenci-alma-izni', '9-sinif-kayit', 'devamsizlik'].includes(result.intent)) {
             handleServiceSelection(result.intent);
           }
         }
@@ -365,6 +422,7 @@ const Index = () => {
       'disiplin': 'Disiplin',
       'ogrenci-alma-izni': 'Öğrenciyi Okuldan Alma İzni',
       '9-sinif-kayit': '9.sınıf Kayıt Yönlendirme',
+      'devamsizlik': 'Devamsızlık Bilgileri',
     };
     
     return serviceMap[selectedService] || selectedService;
@@ -393,7 +451,7 @@ const Index = () => {
           <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-blue-50 to-white dark:from-blue-950 dark:to-gray-900 transition-colors duration-300">
             <div className="w-full max-w-5xl mx-auto">
               <div className="text-center mb-4 flex items-center justify-center">
-                <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
+                <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi</h1>
                 <button
                   onClick={toggleAudio}
                   className="ml-3 p-2 bg-white dark:bg-gray-800 rounded-full shadow hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -422,7 +480,7 @@ const Index = () => {
             <div className="w-full max-w-5xl mx-auto">
               <div className="text-center mb-4 flex items-center justify-center">
                 <School className="mr-3 text-blue-700 dark:text-blue-400" size={32} />
-                <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Mesleki ve Teknik Anadolu Lisesi</h1>
+                <h1 className="text-4xl font-bold text-blue-800 dark:text-blue-300">Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi</h1>
                 <button
                   onClick={toggleAudio}
                   className="ml-3 p-2 bg-white dark:bg-gray-800 rounded-full shadow hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -451,6 +509,26 @@ const Index = () => {
                     reason={getServiceDisplayName()}
                     onTimeout={resetApp}
                   />
+                )}
+                
+                {appState === 'devamsizlik-form' && (
+                  <DevamsizlikForm onSubmit={handleDevamsizlikFormSubmit} />
+                )}
+                
+                {appState === 'devamsizlik-table' && (
+                  <DevamsizlikTable 
+                    name={studentName} 
+                    surname={studentSurname} 
+                    onTimeout={handleDevamsizlikTimeout} 
+                  />
+                )}
+                
+                {appState === 'registration-contract' && (
+                  <RegistrationContract onComplete={handleContractComplete} />
+                )}
+                
+                {appState === 'registration-form' && (
+                  <RegistrationForm onSubmit={handleRegistrationFormSubmit} />
                 )}
               </div>
               

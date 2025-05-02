@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import * as faceapi from 'face-api.js';
 import * as tf from '@tensorflow/tfjs';
@@ -20,7 +21,7 @@ export const Webcam: React.FC = () => {
       // Set the path to the models
       const MODEL_URL = '/models';
 
-      // Load models sequentially (TinyFaceDetector ve FaceLandmark68Net)
+      // Load models sequentially
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -34,7 +35,7 @@ export const Webcam: React.FC = () => {
     }
   };
 
-  // Detect faces using face-api.js and check if the face is looking at the screen
+  // Detect faces using face-api.js
   const detectFaces = async () => {
     if (!videoRef.current || !canvasRef.current || !modelsLoaded.current) return;
 
@@ -250,7 +251,7 @@ export const Webcam: React.FC = () => {
       <canvas
         ref={canvasRef}
         className="absolute top-0 left-0 w-full h-full"
-        style={{ display: 'none' }} // Görsel geri bildirim için gizli, isterseniz kaldırabilirsiniz
+        style={{ display: 'none' }} // Hidden for visual feedback, can be shown if needed
       />
 
       {errorMessage && (
