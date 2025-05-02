@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import * as tf from '@tensorflow/tfjs';
 
@@ -170,17 +169,25 @@ export const Webcam: React.FC = () => {
       // Check if a face is detected
       const currentFaceDetected = resizedDetections.length > 0;
       
+      // Make the canvas visible for debugging
+      canvas.style.display = 'block';
+      canvas.style.opacity = '0.6';
+      
       if (currentFaceDetected) {
         consecutiveDetectionsRef.current++;
         consecutiveNonDetectionsRef.current = 0;
         
-        if (consecutiveDetectionsRef.current >= 2 && !faceDetected) {
-          setFaceDetected(true);
-          
-          // Dispatch face detected event
-          window.dispatchEvent(new CustomEvent('faceDetected', {
-            detail: { detected: true }
-          }));
+        // Require fewer consecutive detections (2 is more responsive)
+        if (consecutiveDetectionsRef.current >= 2) {
+          if (!faceDetected) {
+            console.log('Face detected!');
+            setFaceDetected(true);
+            
+            // Dispatch face detected event
+            window.dispatchEvent(new CustomEvent('faceDetected', {
+              detail: { detected: true }
+            }));
+          }
           
           // Draw face detection results if a face is detected
           if (ctx) {
@@ -193,7 +200,8 @@ export const Webcam: React.FC = () => {
         consecutiveDetectionsRef.current = 0;
         
         // Require more consecutive non-detections before declaring face lost
-        if (consecutiveNonDetectionsRef.current >= 8 && faceDetected) {
+        if (consecutiveNonDetectionsRef.current >= 5 && faceDetected) {
+          console.log('Face lost');
           setFaceDetected(false);
           
           // Dispatch face lost event
@@ -220,7 +228,11 @@ export const Webcam: React.FC = () => {
       <canvas
         ref={canvasRef}
         className="absolute top-0 left-0 w-full h-full"
-        style={{ display: 'none' }} // Hidden for cleaner UI
+        style={{ 
+          transform: 'scaleX(-1)', // Mirror to match video
+          // Display for debugging but make it semi-transparent
+          opacity: '0.6' 
+        }}
       />
 
       {errorMessage && (
