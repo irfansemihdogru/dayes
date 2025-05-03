@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -148,6 +149,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   const [currentSpeakingIndex, setCurrentSpeakingIndex] = useState<number>(-1);
   const [isReading, setIsReading] = useState(false);
   const [readingFinished, setReadingFinished] = useState(false);
+  const [currentSection, setCurrentSection] = useState<string>("");
   const contractParagraphs = contractText.split('\n');
   const scrollRef = useRef<HTMLDivElement>(null);
   
@@ -185,41 +187,75 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   const readContract = async () => {
     setIsReading(true);
     
-    // Speak warning at the beginning
+    // Start with a detailed introduction
+    setCurrentSection("GİRİŞ");
     await new Promise<void>((resolve) => {
-      speakText("Sayın veli, lütfen dikkatle dinleyiniz. Sözleşmeyi anladıktan sonra alttaki formu doldurup imzalamanız gerekmektedir.", {
-        rate: 0.9,
+      speakText("Sayın veli, sizlere 9. sınıf kayıt sözleşmesini okuyacağım. Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları içermektedir. Lütfen sözleşmenin tamamını dikkatle dinleyiniz. Sözleşmeyi anladığınızda sayfanın alt kısmında bulunan onay butonuna tıklayarak kayıt formuna geçebilirsiniz.", {
+        rate: 0.8,
         onEnd: () => resolve()
       });
     });
     
-    // Read contract paragraphs one by one with highlighting
-    for (let i = 0; i < contractParagraphs.length; i++) {
-      if (contractParagraphs[i].trim()) {
-        setCurrentSpeakingIndex(i);
-        
-        // Scroll to the current paragraph
-        if (scrollRef.current) {
-          const paragraphElement = document.getElementById(`paragraph-${i}`);
-          if (paragraphElement) {
-            scrollRef.current.scrollTop = paragraphElement.offsetTop - 100;
+    // Wait a moment before starting the actual contract
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Group paragraphs by sections for more organized reading
+    const sections = [
+      { title: "SÖZLEŞME GİRİŞ", endIndex: 6 },
+      { title: "SÖZLEŞME TARAFLARI", endIndex: 10 },
+      { title: "OKUL HAKLARI", endIndex: 20 },
+      { title: "OKUL SORUMLULUKLARI", endIndex: 42 },
+      { title: "ÖĞRENCİ HAKLARI", endIndex: 62 },
+      { title: "ÖĞRENCİ SORUMLULUKLARI", endIndex: 81 },
+      { title: "VELİ HAKLARI", endIndex: 97 },
+      { title: "VELİ SORUMLULUKLARI", endIndex: 130 }
+    ];
+    
+    // Read contract by sections with appropriate pauses
+    let currentParaIndex = 0;
+    for (let section of sections) {
+      setCurrentSection(section.title);
+      
+      // Small pause before starting new section
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      while (currentParaIndex <= section.endIndex && currentParaIndex < contractParagraphs.length) {
+        if (contractParagraphs[currentParaIndex].trim()) {
+          setCurrentSpeakingIndex(currentParaIndex);
+          
+          // Scroll to the current paragraph with smooth animation
+          if (scrollRef.current) {
+            const paragraphElement = document.getElementById(`paragraph-${currentParaIndex}`);
+            if (paragraphElement) {
+              scrollRef.current.scrollTo({
+                top: paragraphElement.offsetTop - 100,
+                behavior: 'smooth'
+              });
+            }
           }
-        }
-        
-        await new Promise<void>((resolve) => {
-          speakText(contractParagraphs[i], {
-            rate: 0.9,
-            onEnd: () => resolve()
+          
+          await new Promise<void>((resolve) => {
+            speakText(contractParagraphs[currentParaIndex], {
+              rate: 0.8, // Slightly slower rate for better comprehension
+              pitch: 1.0,
+              volume: 1.0,
+              onEnd: () => {
+                // Small pause after each paragraph for better comprehension
+                setTimeout(resolve, 300);
+              }
+            });
           });
-        });
+        }
+        currentParaIndex++;
       }
     }
     
-    // Speak warning at the end
+    // Conclusion message
+    setCurrentSection("SONUÇ");
     setCurrentSpeakingIndex(-1);
     await new Promise<void>((resolve) => {
-      speakText("Sözleşmeyi dinlediğiniz için teşekkür ederiz. Lütfen sözleşmeyi anladıktan sonra alttaki formu doldurup imzalayınız.", {
-        rate: 0.9,
+      speakText("Sözleşmenin okunması tamamlanmıştır. Sözleşmeyi kabul etmek ve kayıt formuna geçmek için lütfen sayfanın altındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz.", {
+        rate: 0.8,
         onEnd: () => resolve()
       });
     });
@@ -232,6 +268,11 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     <Card className={`w-full mx-auto max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
       <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg`}>
         <CardTitle className="text-2xl text-center">9. Sınıf Kayıt Sözleşmesi</CardTitle>
+        {currentSection && (
+          <div className="text-center mt-1 text-white/90 font-medium">
+            {currentSection}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="p-6">
         <div 
@@ -242,12 +283,12 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
             <p 
               key={index} 
               id={`paragraph-${index}`}
-              className={`mb-3 ${
+              className={`mb-3 transition-all duration-500 ${
                 currentSpeakingIndex === index
                   ? `${isDarkMode 
-                      ? 'bg-blue-900/50 text-blue-100' 
-                      : 'bg-blue-100 text-blue-900'
-                    } p-2 rounded transition-all duration-300`
+                      ? 'bg-blue-900 text-white font-medium text-lg px-4 py-3 rounded-lg shadow-lg border-l-4 border-blue-400' 
+                      : 'bg-blue-100 text-blue-900 font-medium text-lg px-4 py-3 rounded-lg shadow-md border-l-4 border-blue-500'
+                    }`
                   : ''
               }`}
             >
@@ -258,13 +299,13 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         
         <div className="text-center">
           <p className={`${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'} font-bold mb-4`}>
-            Sözleşmeyi anladıktan sonra aşağıdaki formu doldurup imzalayınız.
+            Sözleşmeyi anladıktan sonra aşağıdaki butona tıklayarak kayıt formuna geçebilirsiniz.
           </p>
         </div>
       </CardContent>
       <CardFooter className="flex justify-center">
         <Button 
-          className={`${isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+          className={`${isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-8 py-6 text-lg`}
           onClick={onComplete}
           disabled={isReading && !readingFinished}
         >
