@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,7 @@ içeriğini en az bir hafta önceden haber vererek değiştirmek.
 · Ödül ve cezalara karar vermek; öğrenci ve velilerin bu kararları saygıyla 
 karşılamasını ve önerilere uyulmasını beklemek 
 · Okulun hedeflerine uygun planlamalara öğrenci ve velilerin katılımını ve 
-desteğini beklemek 
+destegini beklemek 
 SORUMLULUKLAR
 · Öğrencilerin akademik ve sosyal gelişimlerini destekleyecek materyal, ekipman 
 ve teknolojik donanım sağlamak. 
@@ -60,7 +59,7 @@ sonuçlarını ilgililerle paylaşmak ve gizliliğini sağlamak.
 · Okul ve çevresinde şiddet içeren davranışlara kesinlikle izin vermemek. 
 Okula Özgü Sorumluluklar
 · Bilimsel süreli yayınları okul kütüphanesinde kullanıma sunmak. 
-· Öğrenciler için toplumsal hizmet etkinlikleri planlamak ve yürütmek 
+· Öğrenciler için toplumsal hizmet etkinlikleri planlamak ve yürütmek
 ÖĞRENCİNİN HAK VE SORUMLULUKLARI
 Haklar
 · Düşüncelerini özgürce ifade etme 
@@ -130,7 +129,7 @@ sağlayacağım.
 · Okulun düzenleyeceği veli eğitim seminerlerine katılacağım 
 · Çocuğuma yaşına uygun sorumluluklar vereceğim. 
 · Disiplin yönetmeliğini ve veli-öğrenci el kitapçığını dikkatlice okuyup 
-çocuğumun, disiplin kurallarına uyması için gerekli önlemleri alacağım. 
+cocuğumun, disiplin kurallarına uyması için gerekli önlemleri alacağım. 
 · Çocuğumun ruhsal ve fiziksel durumundaki değişmeler hakkında okulu 
 zamanında bilgilendireceğim. 
 · Aile ortamında fiziksel ve psikolojik şiddete izin vermeyeceğim. 
@@ -151,6 +150,26 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   const [readingFinished, setReadingFinished] = useState(false);
   const contractParagraphs = contractText.split('\n');
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Ensure any global voice listeners are temporarily disabled during contract reading
+  useEffect(() => {
+    // Create a custom event to notify other components that contract reading is active
+    const notifyReadingStatus = (status: boolean) => {
+      const event = new CustomEvent('contractReading', { 
+        detail: { isReading: status }
+      });
+      window.dispatchEvent(event);
+    };
+    
+    if (isReading) {
+      notifyReadingStatus(true);
+    }
+    
+    return () => {
+      notifyReadingStatus(false);
+      cancelSpeech();
+    };
+  }, [isReading]);
   
   useEffect(() => {
     const timer = setTimeout(() => {

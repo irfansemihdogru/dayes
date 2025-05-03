@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Webcam } from './Webcam';
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTheme } from '@/context/ThemeContext';
-import { useRouter } from 'next/router'; // Import router for navigation
 
 interface FaceRecognitionProps {
   onDetected: () => void;
@@ -17,7 +17,6 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({
   isWelcomeMessagePlaying,
   redirectPath = '/dashboard' // Default redirect path
 }) => {
-  const router = useRouter(); // Initialize router
   const [detecting, setDetecting] = useState(true);
   const detectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [detectedCount, setDetectedCount] = useState(0);
@@ -54,14 +53,8 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({
     setDetecting(false);
     setRedirecting(true);
     
-    // First call the provided callback
+    // Call the provided callback
     onDetected();
-    
-    // Then redirect after a short delay (giving time for any animations/feedback)
-    setTimeout(() => {
-      console.log(`Redirecting to ${redirectPath}`);
-      router.push(redirectPath);
-    }, 1500);
   };
   
   // Listen for the faceDetected event from the Webcam component
@@ -122,7 +115,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({
         clearTimeout(detectionTimeoutRef.current);
       }
     };
-  }, [detecting, onDetected, cameraActive, isWelcomeMessagePlaying, redirectPath, redirecting]);
+  }, [detecting, onDetected, cameraActive, isWelcomeMessagePlaying, redirecting]);
 
   // Check if welcome message has finished playing and we have already detected a face
   useEffect(() => {
@@ -133,7 +126,7 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({
       }
       handleFaceDetectionSuccess();
     }
-  }, [isWelcomeMessagePlaying, detecting, redirecting, redirectPath]);
+  }, [isWelcomeMessagePlaying, detecting, redirecting]);
 
   return (
     <Card className={`w-full max-w-5xl mx-auto ${isDarkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>

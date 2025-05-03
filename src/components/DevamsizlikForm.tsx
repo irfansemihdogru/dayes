@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useTheme } from '@/context/ThemeContext';
 import { speakText } from '@/utils/speechUtils';
 import VoiceRecognition from './VoiceRecognition';
+import { cancelSpeech } from '@/utils/speechUtils';
 
 interface DevamsizlikFormProps {
   onSubmit: (name: string, surname: string) => void;
@@ -18,17 +19,29 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
   const { isDarkMode } = useTheme();
   const [isListening, setIsListening] = useState(false);
   const [processingVoice, setProcessingVoice] = useState(false);
+  const [speakingComplete, setSpeakingComplete] = useState(false);
   
   useEffect(() => {
     // Start voice recognition after a short delay
     const timer = setTimeout(() => {
       // Announce the prompt for name and surname input
       speakText('Lütfen öğrencinin adını ve soyadını söyleyiniz', {
-        onEnd: () => setIsListening(true)
+        onStart: () => {
+          setSpeakingComplete(false);
+        },
+        onEnd: () => {
+          setSpeakingComplete(true);
+          setTimeout(() => {
+            setIsListening(true);
+          }, 300);
+        }
       });
     }, 500);
     
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      cancelSpeech();
+    };
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -44,6 +57,7 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
   
   const handleVoiceResult = (text: string) => {
     setProcessingVoice(true);
+    console.log("Voice recognition result:", text);
     
     // Process the voice input to extract name and surname
     const nameParts = text.trim().split(/\s+/);
@@ -127,7 +141,7 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
             Öğrenci adını ve soyadını sesli olarak söyleyebilirsiniz
           </p>
           <VoiceRecognition
-            isListening={isListening}
+            isListening={isListening && speakingComplete}
             onResult={handleVoiceResult}
             onListeningEnd={() => setIsListening(false)}
             prompt="Lütfen öğrencinin adını ve soyadını söyleyiniz"

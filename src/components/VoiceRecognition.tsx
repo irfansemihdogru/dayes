@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
-import { isCurrentlySpeaking } from '@/utils/speechUtils';
+import { isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
 
 interface VoiceRecognitionProps {
   isListening: boolean;
@@ -47,6 +47,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const isRecognitionActiveRef = useRef(false);
   const retryCountRef = useRef(0);
   const maxRetries = 3;
+  const systemSpeakingTimestampRef = useRef<number>(0);
+  const recognitionBufferTimeMs = 800; // Wait time after system speech before accepting new commands
   
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
@@ -69,6 +71,16 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         const transcriptValue = result[0].transcript;
         
         console.log('Speech recognition result:', transcriptValue);
+        
+        // Check if enough time has passed since system last spoke
+        const currentTime = Date.now();
+        const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
+        
+        if (timeSinceSystemSpoke < recognitionBufferTimeMs) {
+          console.log(`Ignoring voice input, system spoke ${timeSinceSystemSpoke}ms ago`);
+          return;
+        }
+        
         setTranscript(transcriptValue);
         
         if (result.isFinal) {
@@ -133,10 +145,51 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }
   }, [isListening, onListeningEnd, onResult]);
   
+  // Track when system is speaking to ignore self-triggered commands
+  useEffect(() => {
+    // Create a modified version of speechSynthesis.speak that updates our timestamp
+    const originalSpeak = window.speechSynthesis.speak;
+    window.speechSynthesis.speak = function(utterance) {
+      // Update the timestamp when system starts speaking
+      systemSpeakingTimestampRef.current = Date.now();
+      
+      // Also update when speech ends
+      const originalOnEnd = utterance.onend;
+      utterance.onend = function(event) {
+        // Add buffer time to prevent immediate recognition after speech
+        systemSpeakingTimestampRef.current = Date.now();
+        if (originalOnEnd) {
+          originalOnEnd.call(this, event);
+        }
+      };
+      
+      return originalSpeak.call(this, utterance);
+    };
+    
+    // Restore original function when component unmounts
+    return () => {
+      window.speechSynthesis.speak = originalSpeak;
+    };
+  }, []);
+  
   const startRecognition = useCallback(() => {
     // Don't start if we're already active or if speech synthesis is speaking
     if (isRecognitionActiveRef.current || isCurrentlySpeaking()) {
       console.log('Recognition already active or system is speaking, not starting recognition');
+      return;
+    }
+    
+    // Check if enough time has passed since system spoke
+    const currentTime = Date.now();
+    const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
+    if (timeSinceSystemSpoke < recognitionBufferTimeMs) {
+      console.log(`Not starting recognition, system spoke ${timeSinceSystemSpoke}ms ago`);
+      setTimeout(() => {
+        // Try again after buffer time has passed
+        if (isListening && !isCurrentlySpeaking()) {
+          startRecognition();
+        }
+      }, recognitionBufferTimeMs - timeSinceSystemSpoke);
       return;
     }
     
@@ -188,11 +241,18 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       if (isCurrentlySpeaking() && isRecognitionActiveRef.current) {
         console.log("System is speaking, stopping recognition");
         stopRecognition();
+        // Update the timestamp
+        systemSpeakingTimestampRef.current = Date.now();
       } 
       // If system is not speaking and we should be listening, start recognition
       else if (!isCurrentlySpeaking() && isListening && !isRecognitionActiveRef.current) {
-        console.log("System not speaking, can start recognition");
-        startRecognition();
+        // Check if enough time has passed since system spoke
+        const currentTime = Date.now();
+        const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
+        if (timeSinceSystemSpoke > recognitionBufferTimeMs) {
+          console.log("System not speaking for sufficient time, can start recognition");
+          startRecognition();
+        }
       }
     }, 300);
     
@@ -261,12 +321,23 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
               if (prompt && 'speechSynthesis' in window) {
                 // Stop any active recognition
                 stopRecognition();
+                // Update timestamp to prevent self-triggering
+                systemSpeakingTimestampRef.current = Date.now();
+                
+                cancelSpeech(); // Cancel any ongoing speech
+                
                 const utterance = new SpeechSynthesisUtterance(prompt);
                 utterance.lang = 'tr-TR';
+                utterance.onstart = () => {
+                  // Update timestamp when speech starts
+                  systemSpeakingTimestampRef.current = Date.now();
+                };
                 utterance.onend = () => {
+                  // Update timestamp when speech ends
+                  systemSpeakingTimestampRef.current = Date.now();
                   // Re-enable recognition when prompt reading ends
                   if (isListening && !isCurrentlySpeaking()) {
-                    setTimeout(() => startRecognition(), 300);
+                    setTimeout(() => startRecognition(), recognitionBufferTimeMs);
                   }
                 };
                 window.speechSynthesis.speak(utterance);

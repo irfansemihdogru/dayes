@@ -73,6 +73,8 @@ const Index = () => {
   const [studentName, setStudentName] = useState('');
   const [studentSurname, setStudentSurname] = useState('');
   
+  const [contractReadingActive, setContractReadingActive] = useState(false);
+  
   const appInitialized = useRef(false);
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -83,6 +85,20 @@ const Index = () => {
       console.log('Speech synthesis initialized');
     });
     
+    // Listen for contract reading status
+    const handleContractReading = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && customEvent.detail.isReading !== undefined) {
+        setContractReadingActive(customEvent.detail.isReading);
+        // If contract is being read, ensure listening is disabled
+        if (customEvent.detail.isReading) {
+          setIsListening(false);
+        }
+      }
+    };
+    
+    window.addEventListener('contractReading', handleContractReading);
+    
     // Cancel any ongoing speech when the page unloads
     const handleUnload = () => {
       clearSpeechQueue();
@@ -91,6 +107,7 @@ const Index = () => {
     window.addEventListener('beforeunload', handleUnload);
     return () => {
       window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('contractReading', handleContractReading);
       clearSpeechQueue();
     };
   }, []);
@@ -109,8 +126,10 @@ const Index = () => {
   
   // Clear any active timeouts when app state changes and manage listening state
   useEffect(() => {
-    // Always stop listening when changing states
-    setIsListening(false);
+    // Always stop listening when changing states or when contract is being read
+    if (contractReadingActive || appState !== 'main-menu' && appState !== 'grade-selection') {
+      setIsListening(false);
+    }
     
     if (voiceCommandTimeoutRef.current) {
       clearTimeout(voiceCommandTimeoutRef.current);
@@ -118,7 +137,10 @@ const Index = () => {
     }
     
     // Only set timeouts for states where we want automatic return to main menu
-    if ((appState === 'main-menu' || appState === 'grade-selection') && isListening) {
+    // and only if contract reading is not active
+    if ((appState === 'main-menu' || appState === 'grade-selection') && 
+        isListening && 
+        !contractReadingActive) {
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout - reloading page');
         resetApp();
@@ -130,7 +152,7 @@ const Index = () => {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
     };
-  }, [appState]);
+  }, [appState, contractReadingActive]);
   
   const speakWelcomeMessage = () => {
     if (!audioEnabled) {
@@ -199,6 +221,11 @@ const Index = () => {
       // First cancel any ongoing speech to prevent conflicts
       cancelSpeech();
       
+      // Don't enable listening if contract reading is active
+      if (contractReadingActive) {
+        return;
+      }
+      
       switch (appState) {
         case 'start-screen':
         case 'face-recognition':
@@ -219,8 +246,8 @@ const Index = () => {
           if (audioEnabled) {
             speakText(prompt, {
               onEnd: () => {
-                // Check again if the state is still main-menu before enabling listening
-                if (appState === 'main-menu') {
+                // Check again if the state is still main-menu and no contract reading is active
+                if (appState === 'main-menu' && !contractReadingActive) {
                   setIsListening(true);
                 }
               }
@@ -228,7 +255,7 @@ const Index = () => {
           } else {
             // Wait a moment before activating microphone
             setTimeout(() => {
-              if (appState === 'main-menu') {
+              if (appState === 'main-menu' && !contractReadingActive) {
                 setIsListening(true);
               }
             }, 300);
@@ -243,8 +270,8 @@ const Index = () => {
           if (audioEnabled) {
             speakText(prompt, {
               onEnd: () => {
-                // Check again if the state is still grade-selection before enabling listening
-                if (appState === 'grade-selection') {
+                // Check again if the state is still grade-selection and no contract reading is active
+                if (appState === 'grade-selection' && !contractReadingActive) {
                   setIsListening(true);
                 }
               }
@@ -252,7 +279,7 @@ const Index = () => {
           } else {
             // Wait a moment before activating microphone
             setTimeout(() => {
-              if (appState === 'grade-selection') {
+              if (appState === 'grade-selection' && !contractReadingActive) {
                 setIsListening(true);
               }
             }, 300);
@@ -263,7 +290,7 @@ const Index = () => {
     }, 300);
     
     return () => clearTimeout(transitionDelay);
-  }, [appState, audioEnabled]);
+  }, [appState, audioEnabled, contractReadingActive]);
   
   const resetApp = () => {
     // Cancel any ongoing speech
@@ -379,6 +406,12 @@ const Index = () => {
   };
   
   const handleVoiceResult = async (text: string) => {
+    // Ignore voice commands if contract is being read
+    if (contractReadingActive) {
+      console.log("Contract reading active, ignoring voice command");
+      return;
+    }
+    
     try {
       // Reset timeout when a voice command is received
       if (voiceCommandTimeoutRef.current) {
@@ -448,7 +481,9 @@ const Index = () => {
       
       // Re-enable listening after error if still in appropriate state
       setTimeout(() => {
-        if ((appState === 'main-menu' || appState === 'grade-selection') && !isCurrentlySpeaking()) {
+        if ((appState === 'main-menu' || appState === 'grade-selection') && 
+            !isCurrentlySpeaking() && 
+            !contractReadingActive) {
           setIsListening(true);
         }
       }, 1000);
