@@ -152,11 +152,12 @@ const Index = () => {
   
   const handleFaceDetected = () => {
     if (appState === 'face-recognition') {
+      // Successfully detected face, proceed to main menu
+      console.log('Face detection successful, proceeding to main menu');
       setTimeout(() => {
         setAppState('main-menu');
         
         if (!isCurrentlySpeaking()) {
-          // Don't start listening yet, wait until prompt is spoken
           setIsListening(false);
         }
         
@@ -164,17 +165,14 @@ const Index = () => {
         setVoicePrompt(prompt);
         
         if (audioEnabled) {
-          // Cancel any ongoing speech first
           cancelSpeech();
           
           speakText(prompt, {
             onEnd: () => {
-              // Only start listening after the prompt has been spoken
               setIsListening(true);
             }
           });
         } else {
-          // If audio is disabled, just start listening immediately
           setIsListening(true);
         }
       }, 1000);
