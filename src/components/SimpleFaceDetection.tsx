@@ -28,10 +28,15 @@ const SimpleFaceDetection: React.FC<SimpleFaceDetectionProps> = ({ onDetected, i
     
     // Setup camera
     const setupCamera = async () => {
-      if (!videoRef.current) return;
-      
       try {
         console.log('Setting up camera...');
+        // Make sure videoRef is available
+        if (!videoRef.current) {
+          // Try again in a moment if the ref isn't yet available
+          setTimeout(setupCamera, 100);
+          return;
+        }
+        
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 640 },
@@ -40,27 +45,31 @@ const SimpleFaceDetection: React.FC<SimpleFaceDetectionProps> = ({ onDetected, i
           },
         });
         
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setCameraActive(true);
-        
-        // Draw detection UI once camera is active
-        if (canvasRef.current) {
-          const ctx = canvasRef.current.getContext('2d');
-          if (ctx && videoRef.current) {
-            // Set canvas dimensions to match video
-            canvasRef.current.width = videoRef.current.videoWidth || 640;
-            canvasRef.current.height = videoRef.current.videoHeight || 480;
-            
-            // Draw detection UI - just a simple outline for demo
-            ctx.strokeStyle = 'green';
-            ctx.lineWidth = 3;
-            
-            // Draw a detection rectangle in the middle
-            const centerX = (canvasRef.current.width / 2) - 75;
-            const centerY = (canvasRef.current.height / 2) - 75;
-            ctx.strokeRect(centerX, centerY, 150, 150);
-          }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          streamRef.current = stream;
+          setCameraActive(true);
+          
+          // Draw detection UI once camera is active
+          videoRef.current.onloadedmetadata = () => {
+            if (canvasRef.current && videoRef.current) {
+              // Set canvas dimensions to match video
+              canvasRef.current.width = videoRef.current.videoWidth || 640;
+              canvasRef.current.height = videoRef.current.videoHeight || 480;
+              
+              // Draw detection UI - just a simple outline for demo
+              const ctx = canvasRef.current.getContext('2d');
+              if (ctx) {
+                ctx.strokeStyle = 'green';
+                ctx.lineWidth = 3;
+                
+                // Draw a detection rectangle in the middle
+                const centerX = (canvasRef.current.width / 2) - 75;
+                const centerY = (canvasRef.current.height / 2) - 75;
+                ctx.strokeRect(centerX, centerY, 150, 150);
+              }
+            }
+          };
         }
         
         console.log('Camera setup complete');

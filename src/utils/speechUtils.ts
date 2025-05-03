@@ -1,4 +1,3 @@
-
 /**
  * Speech synthesis utilities to ensure consistent voice output across devices and browsers
  */
@@ -202,9 +201,10 @@ const processSpeechQueue = () => {
   window.speechSynthesis.speak(utterance);
 };
 
-// Check if speech synthesis is speaking
+// Modified function to check if speech synthesis is currently speaking
 export const isCurrentlySpeaking = (): boolean => {
-  return isSpeaking || (window.speechSynthesis && window.speechSynthesis.speaking);
+  if (!('speechSynthesis' in window)) return false;
+  return isSpeaking || window.speechSynthesis.speaking || window.speechSynthesis.pending;
 };
 
 // Cancel current speech

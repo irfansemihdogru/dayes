@@ -107,14 +107,17 @@ const Index = () => {
     }
   }, [appState, audioEnabled]);
   
-  // Clear any active timeouts when app state changes
+  // Clear any active timeouts when app state changes and manage listening state
   useEffect(() => {
+    // Always stop listening when changing states
+    setIsListening(false);
+    
     if (voiceCommandTimeoutRef.current) {
       clearTimeout(voiceCommandTimeoutRef.current);
       voiceCommandTimeoutRef.current = null;
     }
     
-    // Start a new timeout for main menu and grade selection states
+    // Only set timeouts for states where we want automatic return to main menu
     if ((appState === 'main-menu' || appState === 'grade-selection') && isListening) {
       voiceCommandTimeoutRef.current = setTimeout(() => {
         console.log('Voice command timeout - reloading page');
@@ -127,7 +130,7 @@ const Index = () => {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
     };
-  }, [appState, isListening]);
+  }, [appState]);
   
   const speakWelcomeMessage = () => {
     if (!audioEnabled) {
@@ -191,36 +194,44 @@ const Index = () => {
   }, []);
   
   useEffect(() => {
-    // When app state changes, update voice prompts
+    // Ensure proper voice prompt management with delays to prevent overlap
     const transitionDelay = setTimeout(() => {
+      // First cancel any ongoing speech to prevent conflicts
+      cancelSpeech();
+      
       switch (appState) {
         case 'start-screen':
-          setVoicePrompt('');
-          setIsListening(false);
-          break;
-          
         case 'face-recognition':
-          setVoicePrompt('');
+        case 'staff-direction':
+        case 'devamsizlik-form': // No microphone here, handled by component
+        case 'devamsizlik-table':
+        case 'registration-contract':
+        case 'registration-form':
+          // No need for microphone in these states
           setIsListening(false);
+          setVoicePrompt('');
           break;
           
         case 'main-menu': {
           const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
           setVoicePrompt(prompt);
           
-          // Cancel any ongoing speech
-          cancelSpeech();
-          
           if (audioEnabled) {
             speakText(prompt, {
               onEnd: () => {
-                // Only start listening after the prompt
-                setIsListening(true);
+                // Check again if the state is still main-menu before enabling listening
+                if (appState === 'main-menu') {
+                  setIsListening(true);
+                }
               }
             });
           } else {
-            // If audio is disabled, just start listening
-            setIsListening(true);
+            // Wait a moment before activating microphone
+            setTimeout(() => {
+              if (appState === 'main-menu') {
+                setIsListening(true);
+              }
+            }, 300);
           }
           break;
         }
@@ -229,31 +240,25 @@ const Index = () => {
           const prompt = 'Öğrenciniz kaçıncı sınıf?';
           setVoicePrompt(prompt);
           
-          // Cancel any ongoing speech
-          cancelSpeech();
-          
           if (audioEnabled) {
             speakText(prompt, {
               onEnd: () => {
-                // Only start listening after the prompt
-                setIsListening(true);
+                // Check again if the state is still grade-selection before enabling listening
+                if (appState === 'grade-selection') {
+                  setIsListening(true);
+                }
               }
             });
           } else {
-            // If audio is disabled, just start listening
-            setIsListening(true);
+            // Wait a moment before activating microphone
+            setTimeout(() => {
+              if (appState === 'grade-selection') {
+                setIsListening(true);
+              }
+            }, 300);
           }
           break;
         }
-        
-        case 'staff-direction':
-        case 'devamsizlik-form':
-        case 'devamsizlik-table':
-        case 'registration-contract':
-        case 'registration-form':
-          // No need for microphone in these states
-          setIsListening(false);
-          break;
       }
     }, 300);
     
@@ -297,6 +302,7 @@ const Index = () => {
   const handleServiceSelection = (service: string) => {
     // Turn off microphone when a service is selected
     setIsListening(false);
+    cancelSpeech(); // Cancel any ongoing speech
     
     setSelectedService(service);
     
@@ -340,6 +346,7 @@ const Index = () => {
   const handleGradeSelection = (grade: number) => {
     // Turn off microphone when a grade is selected
     setIsListening(false);
+    cancelSpeech(); // Cancel any ongoing speech
     
     setSelectedGrade(grade);
     
@@ -351,6 +358,8 @@ const Index = () => {
   };
   
   const handleDevamsizlikFormSubmit = (name: string, surname: string) => {
+    // Make sure any speech is cancelled to prevent overlap
+    cancelSpeech();
     setStudentName(name);
     setStudentSurname(surname);
     setAppState('devamsizlik-table');
@@ -376,38 +385,73 @@ const Index = () => {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
       
+      // Temporarily disable listening while processing command
+      setIsListening(false);
+      
       // Process the voice command
       const result = await processVoiceCommand(text);
       console.log("Gemini API result:", result);
       
       if (appState === 'main-menu') {
         if (result.intent) {
+          // Valid intent found, stop listening and handle selection
           if (['mesem', 'usta-ogreticilik-belgesi', 'diploma', 'disiplin', 'ogrenci-alma-izni', '9-sinif-kayit', 'devamsizlik'].includes(result.intent)) {
             handleServiceSelection(result.intent);
+            return; // Exit early to prevent re-enabling listening
           }
+        }
+        
+        // If we get here, no valid intent was found
+        if (audioEnabled) {
+          speakText("Lütfen geçerli bir işlem belirtin", {
+            onEnd: () => {
+              if (appState === 'main-menu') {
+                setIsListening(true);
+              }
+            }
+          });
+        } else {
+          // Re-enable listening after a short delay if still in the same state
+          setTimeout(() => {
+            if (appState === 'main-menu') {
+              setIsListening(true);
+            }
+          }, 300);
         }
       } else if (appState === 'grade-selection' && result.grade) {
         const grade = parseInt(result.grade);
         if ([9, 10, 11, 12].includes(grade)) {
           handleGradeSelection(grade);
+          return; // Exit early to prevent re-enabling listening
         } else {
-          // If grade is not valid, restart listening
-          if (!isCurrentlySpeaking()) {
+          // If grade is not valid, provide feedback and resume listening
+          if (audioEnabled) {
+            speakText("Lütfen geçerli bir sınıf belirtin", {
+              onEnd: () => {
+                if (appState === 'grade-selection') {
+                  setIsListening(true);
+                }
+              }
+            });
+          } else {
+            // Re-enable listening after a short delay if still in the same state
             setTimeout(() => {
-              setIsListening(true);
-            }, 1000);
+              if (appState === 'grade-selection') {
+                setIsListening(true);
+              }
+            }, 300);
           }
         }
       }
     } catch (error) {
       console.error("Error processing voice command:", error);
       
-      // Restart listening for grade selection if there was an error
-      if (appState === 'grade-selection' && !isCurrentlySpeaking()) {
-        setTimeout(() => {
+      // Re-enable listening after error if still in appropriate state
+      setTimeout(() => {
+        if ((appState === 'main-menu' || appState === 'grade-selection') && !isCurrentlySpeaking()) {
           setIsListening(true);
-        }, 1000);
-      }
+        }
+      }, 1000);
     }
   };
   

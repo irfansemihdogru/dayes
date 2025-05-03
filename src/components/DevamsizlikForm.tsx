@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTheme } from '@/context/ThemeContext';
 import { speakText } from '@/utils/speechUtils';
+import VoiceRecognition from './VoiceRecognition';
 
 interface DevamsizlikFormProps {
   onSubmit: (name: string, surname: string) => void;
@@ -15,20 +16,65 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
   const [name, setName] = useState('');
   const [surname, setSurname] = useState('');
   const { isDarkMode } = useTheme();
+  const [isListening, setIsListening] = useState(false);
+  const [processingVoice, setProcessingVoice] = useState(false);
   
-  React.useEffect(() => {
-    // Announce the prompt for name and surname input
-    setTimeout(() => {
-      speakText('Lütfen öğrencinin adını ve soyadını söyleyiniz veya giriniz.');
+  useEffect(() => {
+    // Start voice recognition after a short delay
+    const timer = setTimeout(() => {
+      // Announce the prompt for name and surname input
+      speakText('Lütfen öğrencinin adını ve soyadını söyleyiniz', {
+        onEnd: () => setIsListening(true)
+      });
     }, 500);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (name.trim() && surname.trim()) {
+      setIsListening(false); // Stop listening
       speakText(`${name} ${surname} öğrencisinin devamsızlık bilgileri getiriliyor`, {
         onEnd: () => onSubmit(name, surname)
+      });
+    }
+  };
+  
+  const handleVoiceResult = (text: string) => {
+    setProcessingVoice(true);
+    
+    // Process the voice input to extract name and surname
+    const nameParts = text.trim().split(/\s+/);
+    
+    if (nameParts.length >= 2) {
+      // Assume last word is surname, everything before is first name(s)
+      const surname = nameParts.pop() || '';
+      const firstName = nameParts.join(' ');
+      
+      setName(firstName);
+      setSurname(surname);
+      
+      // Stop listening after successful recognition
+      setIsListening(false);
+      
+      // Provide feedback and submit after short delay
+      setTimeout(() => {
+        speakText(`${firstName} ${surname} öğrencisinin devamsızlık bilgileri getiriliyor`, {
+          onEnd: () => {
+            setProcessingVoice(false);
+            onSubmit(firstName, surname);
+          }
+        });
+      }, 500);
+    } else {
+      // If input doesn't have at least two words, provide feedback
+      speakText('Lütfen öğrencinin adını ve soyadını tam olarak söyleyiniz', {
+        onEnd: () => {
+          setProcessingVoice(false);
+          setIsListening(true); // Resume listening
+        }
       });
     }
   };
@@ -74,6 +120,27 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
             </Button>
           </CardFooter>
         </form>
+        
+        {/* Voice Recognition Section */}
+        <div className="mt-6 border-t pt-4 border-gray-200 dark:border-gray-700">
+          <p className={`mb-3 text-center ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+            Öğrenci adını ve soyadını sesli olarak söyleyebilirsiniz
+          </p>
+          <VoiceRecognition
+            isListening={isListening}
+            onResult={handleVoiceResult}
+            onListeningEnd={() => setIsListening(false)}
+            prompt="Lütfen öğrencinin adını ve soyadını söyleyiniz"
+          />
+          
+          {processingVoice && (
+            <div className="mt-3 text-center">
+              <p className="text-green-600 dark:text-green-400 animate-pulse">
+                İşleniyor...
+              </p>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
