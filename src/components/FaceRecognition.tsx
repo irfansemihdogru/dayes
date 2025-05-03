@@ -53,6 +53,12 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({
     setDetecting(false);
     setRedirecting(true);
     
+    // Ensure any voice recognition is disabled during face detection
+    const event = new CustomEvent('contractReading', { 
+      detail: { isReading: true }
+    });
+    window.dispatchEvent(event);
+    
     // Call the provided callback
     onDetected();
   };

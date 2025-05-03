@@ -608,10 +608,10 @@ const Index = () => {
                 )}
               </div>
               
-              {(appState === 'main-menu' || appState === 'grade-selection') && (
+              {(appState === 'main-menu' || appState === 'grade-selection') && !contractReadingActive && (
                 <div className="mt-4 max-w-4xl mx-auto">
                   <VoiceRecognition 
-                    isListening={isListening} 
+                    isListening={isListening && !contractReadingActive} 
                     onResult={handleVoiceResult}
                     onListeningEnd={() => {
                       // Only automatically turn off the microphone in main menu, not in grade selection

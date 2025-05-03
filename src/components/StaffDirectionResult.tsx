@@ -30,6 +30,12 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
   const initialSpeechDoneRef = useRef(false);
 
   useEffect(() => {
+    // Ensure microphone is disabled while in this component
+    const event = new CustomEvent('contractReading', { 
+      detail: { isReading: true }
+    });
+    window.dispatchEvent(event);
+
     const timer = setInterval(() => {
       setSecondsLeft(prev => {
         if (prev <= 1) {
@@ -44,6 +50,12 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
     return () => {
       clearInterval(timer);
       window.speechSynthesis.cancel();
+      
+      // Re-enable microphone when leaving this component
+      const cleanupEvent = new CustomEvent('contractReading', { 
+        detail: { isReading: false }
+      });
+      window.dispatchEvent(cleanupEvent);
     };
   }, [onTimeout]);
 
