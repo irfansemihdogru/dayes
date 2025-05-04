@@ -28,15 +28,34 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
   
   React.useEffect(() => {
     // Announce the page for accessibility when it loads
-    const menuText = "Ana menü. Yapmak istediğiniz işlemi seçiniz veya söyleyiniz. " + 
-      menuItems.map(item => item.name).join(", ");
-      
+    const menuIntro = "Ana menü. Yapmak istediğiniz işlemi seçiniz veya söyleyiniz:";
+    
     setTimeout(() => {
-      speakText(menuText, {
-        rate: 0.9
+      // First announce the intro
+      speakText(menuIntro, {
+        rate: 0.9,
+        onEnd: () => {
+          // Then announce each menu item with a pause between them
+          announceMenuItems(0);
+        }
       });
     }, 500);
   }, []);
+  
+  // Function to announce menu items one by one with pauses
+  const announceMenuItems = (index: number) => {
+    if (index >= menuItems.length) return;
+    
+    speakText(menuItems[index].name, {
+      rate: 0.9,
+      onEnd: () => {
+        // Short pause before next item
+        setTimeout(() => {
+          announceMenuItems(index + 1);
+        }, 300);
+      }
+    });
+  };
   
   return (
     <Card className={`w-full mx-auto max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
