@@ -304,11 +304,15 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setCurrentSection("SONUÇ");
     
     const finalInstructions = 
-      "Sözleşmenin okunması tamamlanmıştır. " +
-      "Okunan sözleşmeyi anladığınızı ve kabul ettiğinizi belirtmek için " + 
+      "Sayın veli, sözleşmenin okunması tamamlanmıştır. " +
+      "Bu sözleşmeyi dikkatlice dinlediğiniz için teşekkür ederiz. " + 
+      "Şimdi, lütfen okunan sözleşmeyi anladığınızı ve kabul ettiğinizi belirtmek için " + 
       "sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. " +
-      "Bu işlemi yaptıktan sonra 9. sınıf kayıt formuna yönlendirileceksiniz. " +
-      "Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz.";
+      "Bu işlemi yaptıktan sonra, 9. sınıf kayıt formunu eksiksiz ve doğru bir şekilde doldurmanız gerekmektedir. " +
+      "Formda öğrenci ve veli bilgilerini eksiksiz doldurup, seçilen alanı belirttikten sonra, " +
+      "formu görevli personele teslim ediniz. " +
+      "Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz. " +
+      "Okul yönetimi adına iyi günler dileriz.";
     
     await new Promise<void>((resolve) => {
       speakText(finalInstructions, {
@@ -371,8 +375,12 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         <div className="text-center">
           {readingFinished ? (
             <div className={`p-4 rounded-md mb-4 ${isDarkMode ? 'bg-green-900/30 border border-green-700/50' : 'bg-green-50 border border-green-200'}`}>
-              <p className={`${isDarkMode ? 'text-green-300' : 'text-green-700'} font-bold`}>
+              <p className={`${isDarkMode ? 'text-green-300' : 'text-green-700'} font-semibold`}>
                 Sözleşme okunması tamamlanmıştır. Kayıt formuna geçmek için aşağıdaki butona tıklayınız.
+              </p>
+              <p className={`mt-2 ${isDarkMode ? 'text-green-200' : 'text-green-600'}`}>
+                Lütfen kayıt formunu eksiksiz ve doğru bir şekilde doldurunuz. Form doldurulduktan sonra çıktısını alıp, 
+                imzalayarak görevli personele teslim etmeniz gerekmektedir.
               </p>
             </div>
           ) : (

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,8 +58,13 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
     setProcessingVoice(true);
     console.log("Voice recognition result:", text);
     
+    // Clean the text: remove punctuation and normalize for Turkish characters
+    const cleanedText = text
+      .replace(/[.,!?;:'"()[\]{}]/g, '') // Remove punctuation
+      .trim();
+    
     // Process the voice input to extract name and surname
-    const nameParts = text.trim().split(/\s+/);
+    const nameParts = cleanedText.split(/\s+/);
     
     if (nameParts.length >= 2) {
       // Assume last word is surname, everything before is first name(s)
@@ -93,6 +97,7 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
     }
   };
 
+  
   return (
     <Card className={`w-full mx-auto max-w-2xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
       <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg`}>
