@@ -150,6 +150,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   const [isReading, setIsReading] = useState(false);
   const [readingFinished, setReadingFinished] = useState(false);
   const [currentSection, setCurrentSection] = useState<string>("");
+  const [instructionsShown, setInstructionsShown] = useState(true);
   const contractParagraphs = contractText.split('\n');
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeElementRef = useRef<HTMLParagraphElement | null>(null);
@@ -175,12 +176,10 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   }, [isReading]);
   
   useEffect(() => {
-    const timer = setTimeout(() => {
-      readContract();
-    }, 1000);
+    // First show instructions then start reading the contract after delay
+    showInitialInstructions();
     
     return () => {
-      clearTimeout(timer);
       cancelSpeech();
     };
   }, []);
@@ -197,7 +196,6 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         const scrollContainer = scrollRef.current;
         const scrollContainerHeight = scrollContainer.clientHeight;
         const elemTop = paragraphElement.offsetTop;
-        const elemHeight = paragraphElement.offsetHeight;
         
         // Target position: element at 1/3 of the scroll container
         const targetScrollTop = elemTop - (scrollContainerHeight / 3);
@@ -210,21 +208,38 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       }
     }
   }, [currentSpeakingIndex]);
+
+  // Show initial instructions to the user
+  const showInitialInstructions = async () => {
+    setInstructionsShown(true);
+    setIsReading(true);
+
+    // Detailed initial instructions
+    const initialInstructions = 
+      "Sayın veli, 9. sınıf kayıt sözleşmesini dinlemeye başlamak üzeresiniz. " +
+      "Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları belirleyen yasal bir dokümandır. " +
+      "Sözleşme okunurken lütfen dikkatle dinleyiniz. " +
+      "Aktif olarak okunan paragraf ekranda mavi renk ile vurgulanacaktır. " +
+      "Sözleşmenin tamamı okunduktan sonra, sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayarak kayıt formuna geçebilirsiniz. " +
+      "Şimdi sözleşmeyi okumaya başlıyorum.";
+    
+    await new Promise<void>((resolve) => {
+      speakText(initialInstructions, {
+        rate: 0.75,
+        onEnd: () => {
+          // Short pause before starting the actual contract
+          setTimeout(() => {
+            setInstructionsShown(false);
+            readContract();
+            resolve();
+          }, 1000);
+        }
+      });
+    });
+  };
   
   const readContract = async () => {
     setIsReading(true);
-    
-    // Start with a detailed introduction
-    setCurrentSection("GİRİŞ");
-    await new Promise<void>((resolve) => {
-      speakText("Sayın veli, sizlere 9. sınıf kayıt sözleşmesini okuyacağım. Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları içermektedir. Lütfen sözleşmenin tamamını dikkatle dinleyiniz. Sözleşmeyi anladığınızda sayfanın alt kısmında bulunan onay butonuna tıklayarak kayıt formuna geçebilirsiniz.", {
-        rate: 0.75,
-        onEnd: () => resolve()
-      });
-    });
-    
-    // Wait a moment before starting the actual contract
-    await new Promise(resolve => setTimeout(resolve, 800));
     
     // Group paragraphs by sections for more organized reading
     const sections = [
@@ -275,18 +290,32 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       await new Promise(resolve => setTimeout(resolve, 800));
     }
     
-    // Conclusion message
-    setCurrentSection("SONUÇ");
+    // Show final instructions
+    await showFinalInstructions();
+    
+    setIsReading(false);
+    setReadingFinished(true);
+  };
+
+  // Show final instructions after contract is read
+  const showFinalInstructions = async () => {
+    // Reset the current speaking index to avoid highlighting
     setCurrentSpeakingIndex(-1);
+    setCurrentSection("SONUÇ");
+    
+    const finalInstructions = 
+      "Sözleşmenin okunması tamamlanmıştır. " +
+      "Okunan sözleşmeyi anladığınızı ve kabul ettiğinizi belirtmek için " + 
+      "sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. " +
+      "Bu işlemi yaptıktan sonra 9. sınıf kayıt formuna yönlendirileceksiniz. " +
+      "Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz.";
+    
     await new Promise<void>((resolve) => {
-      speakText("Sözleşmenin okunması tamamlanmıştır. Sözleşmeyi kabul etmek ve kayıt formuna geçmek için lütfen sayfanın altındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz.", {
+      speakText(finalInstructions, {
         rate: 0.75,
         onEnd: () => resolve()
       });
     });
-    
-    setIsReading(false);
-    setReadingFinished(true);
   };
   
   return (
@@ -300,6 +329,22 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         )}
       </CardHeader>
       <CardContent className="p-6">
+        {instructionsShown && (
+          <div className={`mb-4 p-4 rounded-md ${isDarkMode ? 'bg-amber-900/30 border border-amber-700/50' : 'bg-amber-50 border border-amber-200'}`}>
+            <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>
+              Lütfen Dikkat
+            </h3>
+            <p className={`${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>
+              Sayın veli, 9. sınıf kayıt sözleşmesini dinlemeye başlamak üzeresiniz. 
+              Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları belirleyen yasal bir dokümandır.
+              Lütfen sözleşmeyi dikkatle dinleyiniz. Okunan paragraf ekranda vurgulanacaktır.
+            </p>
+            <p className={`mt-2 ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>
+              Sözleşme okunurken lütfen bekleyiniz ve sözleşme tamamlanana kadar sayfadan ayrılmayınız.
+            </p>
+          </div>
+        )}
+        
         <div 
           ref={scrollRef} 
           className="max-h-[500px] overflow-y-auto p-4 mb-6 rounded-md border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 scroll-smooth"
@@ -324,9 +369,17 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         </div>
         
         <div className="text-center">
-          <p className={`${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'} font-bold mb-4`}>
-            Sözleşmeyi anladıktan sonra aşağıdaki butona tıklayarak kayıt formuna geçebilirsiniz.
-          </p>
+          {readingFinished ? (
+            <div className={`p-4 rounded-md mb-4 ${isDarkMode ? 'bg-green-900/30 border border-green-700/50' : 'bg-green-50 border border-green-200'}`}>
+              <p className={`${isDarkMode ? 'text-green-300' : 'text-green-700'} font-bold`}>
+                Sözleşme okunması tamamlanmıştır. Kayıt formuna geçmek için aşağıdaki butona tıklayınız.
+              </p>
+            </div>
+          ) : (
+            <p className={`${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'} font-bold mb-4`}>
+              {isReading ? "Sözleşme okunuyor, lütfen bekleyiniz..." : "Sözleşmeyi anladıktan sonra aşağıdaki butonla devam ediniz."}
+            </p>
+          )}
         </div>
       </CardContent>
       <CardFooter className="flex justify-center">
@@ -335,7 +388,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
           onClick={onComplete}
           disabled={isReading && !readingFinished}
         >
-          {isReading ? "Sözleşme Okunuyor..." : "Sözleşmeyi Anladım"}
+          {isReading && !readingFinished ? "Sözleşme Okunuyor..." : "Sözleşmeyi Anladım"}
         </Button>
       </CardFooter>
     </Card>
