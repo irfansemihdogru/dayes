@@ -152,6 +152,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   const [currentSection, setCurrentSection] = useState<string>("");
   const contractParagraphs = contractText.split('\n');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const activeElementRef = useRef<HTMLParagraphElement | null>(null);
   
   // Ensure any global voice listeners are temporarily disabled during contract reading
   useEffect(() => {
@@ -183,6 +184,32 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       cancelSpeech();
     };
   }, []);
+
+  // Effect to handle scrolling to active paragraph
+  useEffect(() => {
+    if (currentSpeakingIndex >= 0) {
+      const paragraphElement = document.getElementById(`paragraph-${currentSpeakingIndex}`);
+      if (paragraphElement && scrollRef.current) {
+        // Set the current active element reference
+        activeElementRef.current = paragraphElement as HTMLParagraphElement;
+        
+        // Calculate position to make the element visible in the middle of the scroll area
+        const scrollContainer = scrollRef.current;
+        const scrollContainerHeight = scrollContainer.clientHeight;
+        const elemTop = paragraphElement.offsetTop;
+        const elemHeight = paragraphElement.offsetHeight;
+        
+        // Target position: element at 1/3 of the scroll container
+        const targetScrollTop = elemTop - (scrollContainerHeight / 3);
+        
+        // Smooth scroll to element
+        scrollContainer.scrollTo({
+          top: targetScrollTop,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [currentSpeakingIndex]);
   
   const readContract = async () => {
     setIsReading(true);
@@ -191,24 +218,24 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setCurrentSection("GİRİŞ");
     await new Promise<void>((resolve) => {
       speakText("Sayın veli, sizlere 9. sınıf kayıt sözleşmesini okuyacağım. Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları içermektedir. Lütfen sözleşmenin tamamını dikkatle dinleyiniz. Sözleşmeyi anladığınızda sayfanın alt kısmında bulunan onay butonuna tıklayarak kayıt formuna geçebilirsiniz.", {
-        rate: 0.8,
+        rate: 0.75,
         onEnd: () => resolve()
       });
     });
     
     // Wait a moment before starting the actual contract
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 800));
     
     // Group paragraphs by sections for more organized reading
     const sections = [
-      { title: "SÖZLEŞME GİRİŞ", endIndex: 6 },
-      { title: "SÖZLEŞME TARAFLARI", endIndex: 10 },
-      { title: "OKUL HAKLARI", endIndex: 20 },
-      { title: "OKUL SORUMLULUKLARI", endIndex: 42 },
-      { title: "ÖĞRENCİ HAKLARI", endIndex: 62 },
-      { title: "ÖĞRENCİ SORUMLULUKLARI", endIndex: 81 },
-      { title: "VELİ HAKLARI", endIndex: 97 },
-      { title: "VELİ SORUMLULUKLARI", endIndex: 130 }
+      { title: "SÖZLEŞME GİRİŞİ", endIndex: 6, announcement: "Şimdi sözleşmenin giriş bölümünü okuyorum." },
+      { title: "SÖZLEŞME TARAFLARI", endIndex: 10, announcement: "Şimdi sözleşmenin taraflarını belirtiyorum." },
+      { title: "OKUL HAKLARI", endIndex: 20, announcement: "Şimdi okulun haklarını okuyorum." },
+      { title: "OKUL SORUMLULUKLARI", endIndex: 42, announcement: "Şimdi okulun sorumluluklarını okuyorum." },
+      { title: "ÖĞRENCİ HAKLARI", endIndex: 62, announcement: "Şimdi öğrencilerin haklarını okuyorum." },
+      { title: "ÖĞRENCİ SORUMLULUKLARI", endIndex: 81, announcement: "Şimdi öğrencilerin sorumluluklarını okuyorum." },
+      { title: "VELİ HAKLARI", endIndex: 97, announcement: "Şimdi velilerin haklarını okuyorum." },
+      { title: "VELİ SORUMLULUKLARI", endIndex: 130, announcement: "Son olarak, velilerin sorumluluklarını okuyorum." }
     ];
     
     // Read contract by sections with appropriate pauses
@@ -216,38 +243,36 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     for (let section of sections) {
       setCurrentSection(section.title);
       
-      // Small pause before starting new section
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Announce the section title first
+      await new Promise<void>((resolve) => {
+        speakText(section.announcement, {
+          rate: 0.75,
+          pitch: 1.0,
+          onEnd: () => setTimeout(resolve, 500)
+        });
+      });
       
       while (currentParaIndex <= section.endIndex && currentParaIndex < contractParagraphs.length) {
         if (contractParagraphs[currentParaIndex].trim()) {
           setCurrentSpeakingIndex(currentParaIndex);
           
-          // Scroll to the current paragraph with smooth animation
-          if (scrollRef.current) {
-            const paragraphElement = document.getElementById(`paragraph-${currentParaIndex}`);
-            if (paragraphElement) {
-              scrollRef.current.scrollTo({
-                top: paragraphElement.offsetTop - 100,
-                behavior: 'smooth'
-              });
-            }
-          }
-          
           await new Promise<void>((resolve) => {
             speakText(contractParagraphs[currentParaIndex], {
-              rate: 0.8, // Slightly slower rate for better comprehension
+              rate: 0.7, // Slower rate for better comprehension
               pitch: 1.0,
               volume: 1.0,
               onEnd: () => {
-                // Small pause after each paragraph for better comprehension
-                setTimeout(resolve, 300);
+                // Pause after each paragraph for better comprehension
+                setTimeout(resolve, 400);
               }
             });
           });
         }
         currentParaIndex++;
       }
+      
+      // Pause between sections
+      await new Promise(resolve => setTimeout(resolve, 800));
     }
     
     // Conclusion message
@@ -255,7 +280,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setCurrentSpeakingIndex(-1);
     await new Promise<void>((resolve) => {
       speakText("Sözleşmenin okunması tamamlanmıştır. Sözleşmeyi kabul etmek ve kayıt formuna geçmek için lütfen sayfanın altındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz.", {
-        rate: 0.8,
+        rate: 0.75,
         onEnd: () => resolve()
       });
     });
@@ -269,7 +294,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg`}>
         <CardTitle className="text-2xl text-center">9. Sınıf Kayıt Sözleşmesi</CardTitle>
         {currentSection && (
-          <div className="text-center mt-1 text-white/90 font-medium">
+          <div className="text-center mt-1 text-white/90 font-medium text-lg">
             {currentSection}
           </div>
         )}
@@ -277,17 +302,18 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       <CardContent className="p-6">
         <div 
           ref={scrollRef} 
-          className="max-h-[500px] overflow-y-auto p-4 mb-6 rounded-md border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+          className="max-h-[500px] overflow-y-auto p-4 mb-6 rounded-md border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 scroll-smooth"
         >
           {contractParagraphs.map((paragraph, index) => (
             <p 
               key={index} 
               id={`paragraph-${index}`}
-              className={`mb-3 transition-all duration-500 ${
+              ref={currentSpeakingIndex === index ? (el) => { activeElementRef.current = el; } : null}
+              className={`mb-3 transition-all duration-300 ${
                 currentSpeakingIndex === index
                   ? `${isDarkMode 
-                      ? 'bg-blue-900 text-white font-medium text-lg px-4 py-3 rounded-lg shadow-lg border-l-4 border-blue-400' 
-                      : 'bg-blue-100 text-blue-900 font-medium text-lg px-4 py-3 rounded-lg shadow-md border-l-4 border-blue-500'
+                      ? 'bg-blue-900/90 text-white font-medium text-lg px-6 py-4 rounded-lg shadow-lg border-l-8 border-blue-400 -mx-2 my-4' 
+                      : 'bg-blue-100 text-blue-900 font-medium text-lg px-6 py-4 rounded-lg shadow-md border-l-8 border-blue-500 -mx-2 my-4'
                     }`
                   : ''
               }`}
