@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
@@ -7,6 +8,8 @@ interface VoiceRecognitionProps {
   onResult: (text: string) => void;
   onListeningEnd?: () => void;
   prompt?: string;
+  systemLastSpokeTimestamp?: number;
+  bufferTimeMs?: number;
 }
 
 // Type for the Speech Recognition API
@@ -35,7 +38,9 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   isListening,
   onResult,
   onListeningEnd,
-  prompt
+  prompt,
+  systemLastSpokeTimestamp = 0,
+  bufferTimeMs = 1000
 }) => {
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +51,13 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const isRecognitionActiveRef = useRef(false);
   const retryCountRef = useRef(0);
   const maxRetries = 3;
-  const systemSpeakingTimestampRef = useRef<number>(0);
-  const recognitionBufferTimeMs = 800; // Wait time after system speech before accepting new commands
+  const systemSpeakingTimestampRef = useRef<number>(systemLastSpokeTimestamp);
+  const recognitionBufferTimeMs = bufferTimeMs; // Wait time after system speech before accepting commands
+  
+  // Update the timestamp ref when the prop changes
+  useEffect(() => {
+    systemSpeakingTimestampRef.current = systemLastSpokeTimestamp;
+  }, [systemLastSpokeTimestamp]);
   
   // Initialize speech recognition
   const initRecognition = useCallback(() => {
@@ -76,7 +86,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
         
         if (timeSinceSystemSpoke < recognitionBufferTimeMs) {
-          console.log(`Ignoring voice input, system spoke ${timeSinceSystemSpoke}ms ago`);
+          console.log(`Ignoring voice input, system spoke ${timeSinceSystemSpoke}ms ago (buffer: ${recognitionBufferTimeMs}ms)`);
           return;
         }
         
@@ -142,7 +152,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       setRecognitionSupported(false);
       return null;
     }
-  }, [isListening, onListeningEnd, onResult]);
+  }, [isListening, onListeningEnd, onResult, recognitionBufferTimeMs]);
   
   // Track when system is speaking to ignore self-triggered commands
   useEffect(() => {
@@ -182,13 +192,13 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     const currentTime = Date.now();
     const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
     if (timeSinceSystemSpoke < recognitionBufferTimeMs) {
-      console.log(`Not starting recognition, system spoke ${timeSinceSystemSpoke}ms ago`);
+      console.log(`Not starting recognition, system spoke ${timeSinceSystemSpoke}ms ago (buffer: ${recognitionBufferTimeMs}ms)`);
       setTimeout(() => {
         // Try again after buffer time has passed
         if (isListening && !isCurrentlySpeaking()) {
           startRecognition();
         }
-      }, recognitionBufferTimeMs - timeSinceSystemSpoke);
+      }, recognitionBufferTimeMs - timeSinceSystemSpoke + 100); // Add small extra buffer
       return;
     }
     
@@ -217,7 +227,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       // If we got an error, reset the recognition instance to try again next time
       recognitionRef.current = null;
     }
-  }, [initRecognition, isListening]);
+  }, [initRecognition, isListening, recognitionBufferTimeMs]);
   
   const stopRecognition = useCallback(() => {
     if (!isRecognitionActiveRef.current || !recognitionRef.current) {
@@ -256,12 +266,28 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }, 300);
     
     return () => clearInterval(checkSpeakingInterval);
-  }, [isListening, startRecognition, stopRecognition]);
+  }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
   
   // Manage recognition based on isListening prop
   useEffect(() => {
     if (isListening && !isCurrentlySpeaking()) {
-      startRecognition();
+      // Check buffer time before starting
+      const currentTime = Date.now();
+      const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
+      
+      if (timeSinceSystemSpoke < recognitionBufferTimeMs) {
+        // Wait until buffer time has passed
+        const waitTime = recognitionBufferTimeMs - timeSinceSystemSpoke + 100;
+        console.log(`Delaying recognition start by ${waitTime}ms`);
+        
+        setTimeout(() => {
+          if (isListening && !isCurrentlySpeaking()) {
+            startRecognition();
+          }
+        }, waitTime);
+      } else {
+        startRecognition();
+      }
     } else {
       stopRecognition();
       setTranscript('');
@@ -270,7 +296,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     return () => {
       stopRecognition();
     };
-  }, [isListening, startRecognition, stopRecognition]);
+  }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
   
   // For fallback if speech recognition is not supported
   const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

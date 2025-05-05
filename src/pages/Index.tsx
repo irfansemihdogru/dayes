@@ -81,6 +81,8 @@ const Index = () => {
   const appInitialized = useRef(false);
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const systemLastSpokeRef = useRef<number>(Date.now());
+  const voiceRecognitionBufferTimeMs = 1500; // Buffer time to prevent self-triggering
   
   // This effect handles state transitions and prevents overlapping voice commands
   useEffect(() => {
@@ -99,6 +101,9 @@ const Index = () => {
         clearTimeout(voiceCommandTimeoutRef.current);
         voiceCommandTimeoutRef.current = null;
       }
+      
+      // Update timestamp to prevent immediate voice recognition
+      systemLastSpokeRef.current = Date.now();
       
       // Add a delay before initializing voice for the new state
       // to ensure any previous speech/recognition is fully stopped
@@ -136,12 +141,25 @@ const Index = () => {
           setPromptAlreadyGiven(true);
           
           if (audioEnabled) {
+            // Update timestamp before speaking
+            systemLastSpokeRef.current = Date.now();
+            
             speakText(prompt, {
+              onStart: () => {
+                // Update timestamp when speech starts
+                systemLastSpokeRef.current = Date.now();
+              },
               onEnd: () => {
+                // Update timestamp when speech ends
+                systemLastSpokeRef.current = Date.now();
+                
                 // Check again if the state is still main-menu and no contract reading is active
-                if (appState === 'main-menu' && !contractReadingActive) {
-                  setIsListening(true);
-                }
+                // Add a buffer time to prevent self-triggering
+                setTimeout(() => {
+                  if (appState === 'main-menu' && !contractReadingActive) {
+                    setIsListening(true);
+                  }
+                }, voiceRecognitionBufferTimeMs);
               }
             });
           } else {
@@ -150,12 +168,14 @@ const Index = () => {
               if (appState === 'main-menu' && !contractReadingActive) {
                 setIsListening(true);
               }
-            }, 300);
+            }, voiceRecognitionBufferTimeMs);
           }
         } else {
-          // If prompt already given, just enable listening
+          // If prompt already given, just enable listening after buffer time
           if (!isListening && !isCurrentlySpeaking() && !contractReadingActive) {
-            setIsListening(true);
+            setTimeout(() => {
+              setIsListening(true);
+            }, voiceRecognitionBufferTimeMs);
           }
         }
         break;
@@ -169,12 +189,25 @@ const Index = () => {
           setPromptAlreadyGiven(true);
           
           if (audioEnabled) {
+            // Update timestamp before speaking
+            systemLastSpokeRef.current = Date.now();
+            
             speakText(prompt, {
+              onStart: () => {
+                // Update timestamp when speech starts
+                systemLastSpokeRef.current = Date.now();
+              },
               onEnd: () => {
+                // Update timestamp when speech ends
+                systemLastSpokeRef.current = Date.now();
+                
                 // Check again if the state is still grade-selection and no contract reading is active
-                if (appState === 'grade-selection' && !contractReadingActive) {
-                  setIsListening(true);
-                }
+                // Add a buffer time to prevent self-triggering
+                setTimeout(() => {
+                  if (appState === 'grade-selection' && !contractReadingActive) {
+                    setIsListening(true);
+                  }
+                }, voiceRecognitionBufferTimeMs);
               }
             });
           } else {
@@ -183,12 +216,14 @@ const Index = () => {
               if (appState === 'grade-selection' && !contractReadingActive) {
                 setIsListening(true);
               }
-            }, 300);
+            }, voiceRecognitionBufferTimeMs);
           }
         } else {
-          // If prompt already given, just enable listening
+          // If prompt already given, just enable listening after buffer time
           if (!isListening && !isCurrentlySpeaking() && !contractReadingActive) {
-            setIsListening(true);
+            setTimeout(() => {
+              setIsListening(true);
+            }, voiceRecognitionBufferTimeMs);
           }
         }
         break;
@@ -211,16 +246,22 @@ const Index = () => {
           // Cancel any ongoing speech that might conflict
           cancelSpeech();
           
+          // Update timestamp to prevent voice recognition
+          systemLastSpokeRef.current = Date.now();
+          
           // Cancel any active timeouts
           if (voiceCommandTimeoutRef.current) {
             clearTimeout(voiceCommandTimeoutRef.current);
             voiceCommandTimeoutRef.current = null;
           }
         } else {
+          // Update timestamp when contract reading ends
+          systemLastSpokeRef.current = Date.now();
+          
           // Contract reading has finished, re-initialize voice for current state after a delay
           setTimeout(() => {
             initializeStateVoice(appState);
-          }, 800);
+          }, voiceRecognitionBufferTimeMs);
         }
       }
     };
@@ -245,12 +286,6 @@ const Index = () => {
     initSpeechSynthesis().then(() => {
       console.log('Speech synthesis initialized');
     });
-    
-    // Listen for contract reading status
-    
-    
-    // Cancel any ongoing speech when the page unloads
-    
   }, []);
   
   useEffect(() => {
@@ -265,8 +300,6 @@ const Index = () => {
     }
   }, [appState, audioEnabled]);
   
-  // Clear any active timeouts when app state changes and manage listening state
-  
   const speakWelcomeMessage = () => {
     if (!audioEnabled) {
       setWelcomeMessagePlaying(false);
@@ -276,14 +309,21 @@ const Index = () => {
     // Cancel any ongoing speech first
     cancelSpeech();
     
+    // Update timestamp before speaking
+    systemLastSpokeRef.current = Date.now();
+    
     const welcomeText = "Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
     
     speakText(welcomeText, {
       onStart: () => {
         setWelcomeMessagePlaying(true);
+        // Update timestamp when speech starts
+        systemLastSpokeRef.current = Date.now();
       },
       onEnd: () => {
         setWelcomeMessagePlaying(false);
+        // Update timestamp when speech ends
+        systemLastSpokeRef.current = Date.now();
       }
     });
   };
@@ -296,6 +336,9 @@ const Index = () => {
       // First cancel any ongoing speech and ensure not listening
       cancelSpeech();
       setIsListening(false);
+      
+      // Update timestamp before state change
+      systemLastSpokeRef.current = Date.now();
       
       setTimeout(() => {
         setAppState('main-menu');
@@ -313,7 +356,6 @@ const Index = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-  
   
   const resetApp = () => {
     // Cancel any ongoing speech
@@ -340,11 +382,23 @@ const Index = () => {
     // Cancel any ongoing speech when toggling audio
     cancelSpeech();
     
+    // Update timestamp
+    systemLastSpokeRef.current = Date.now();
+    
     setAudioEnabled(!audioEnabled);
     
     if (!audioEnabled) {
       setTimeout(() => {
-        speakText('Sesli yönlendirme etkinleştirildi.');
+        speakText('Sesli yönlendirme etkinleştirildi.', {
+          onStart: () => {
+            // Update timestamp when speech starts
+            systemLastSpokeRef.current = Date.now();
+          },
+          onEnd: () => {
+            // Update timestamp when speech ends
+            systemLastSpokeRef.current = Date.now();
+          }
+        });
       }, 300);
     }
   };
@@ -353,6 +407,9 @@ const Index = () => {
     // Turn off microphone when a service is selected
     setIsListening(false);
     cancelSpeech(); // Cancel any ongoing speech
+    
+    // Update timestamp
+    systemLastSpokeRef.current = Date.now();
     
     setSelectedService(service);
     
@@ -398,6 +455,9 @@ const Index = () => {
     setIsListening(false);
     cancelSpeech(); // Cancel any ongoing speech
     
+    // Update timestamp
+    systemLastSpokeRef.current = Date.now();
+    
     setSelectedGrade(grade);
     
     const staff = gradeToStaff[grade.toString()];
@@ -410,6 +470,10 @@ const Index = () => {
   const handleDevamsizlikFormSubmit = (name: string, surname: string) => {
     // Make sure any speech is cancelled to prevent overlap
     cancelSpeech();
+    
+    // Update timestamp
+    systemLastSpokeRef.current = Date.now();
+    
     setStudentName(name);
     setStudentSurname(surname);
     setAppState('devamsizlik-table');
@@ -432,6 +496,13 @@ const Index = () => {
     // Ignore voice commands if contract is being read
     if (contractReadingActive) {
       console.log("Contract reading active, ignoring voice command");
+      return;
+    }
+    
+    // Check if enough time has passed since system last spoke
+    const timeSinceSystemSpoke = Date.now() - systemLastSpokeRef.current;
+    if (timeSinceSystemSpoke < voiceRecognitionBufferTimeMs) {
+      console.log(`Ignoring voice input, system spoke ${timeSinceSystemSpoke}ms ago (buffer: ${voiceRecognitionBufferTimeMs}ms)`);
       return;
     }
     
@@ -459,11 +530,24 @@ const Index = () => {
         
         // If we get here, no valid intent was found
         if (audioEnabled) {
+          // Update timestamp before speaking
+          systemLastSpokeRef.current = Date.now();
+          
           speakText("Lütfen geçerli bir işlem belirtin", {
+            onStart: () => {
+              // Update timestamp when speech starts
+              systemLastSpokeRef.current = Date.now();
+            },
             onEnd: () => {
-              if (appState === 'main-menu') {
-                setIsListening(true);
-              }
+              // Update timestamp when speech ends
+              systemLastSpokeRef.current = Date.now();
+              
+              // Add buffer time before enabling microphone again
+              setTimeout(() => {
+                if (appState === 'main-menu') {
+                  setIsListening(true);
+                }
+              }, voiceRecognitionBufferTimeMs);
             }
           });
         } else {
@@ -472,7 +556,7 @@ const Index = () => {
             if (appState === 'main-menu') {
               setIsListening(true);
             }
-          }, 300);
+          }, voiceRecognitionBufferTimeMs);
         }
       } else if (appState === 'grade-selection' && result.grade) {
         const grade = parseInt(result.grade);
@@ -482,11 +566,24 @@ const Index = () => {
         } else {
           // If grade is not valid, provide feedback and resume listening
           if (audioEnabled) {
+            // Update timestamp before speaking
+            systemLastSpokeRef.current = Date.now();
+            
             speakText("Lütfen geçerli bir sınıf belirtin", {
+              onStart: () => {
+                // Update timestamp when speech starts
+                systemLastSpokeRef.current = Date.now();
+              },
               onEnd: () => {
-                if (appState === 'grade-selection') {
-                  setIsListening(true);
-                }
+                // Update timestamp when speech ends
+                systemLastSpokeRef.current = Date.now();
+                
+                // Add buffer time before enabling microphone again
+                setTimeout(() => {
+                  if (appState === 'grade-selection') {
+                    setIsListening(true);
+                  }
+                }, voiceRecognitionBufferTimeMs);
               }
             });
           } else {
@@ -495,7 +592,7 @@ const Index = () => {
               if (appState === 'grade-selection') {
                 setIsListening(true);
               }
-            }, 300);
+            }, voiceRecognitionBufferTimeMs);
           }
         }
       }
@@ -509,7 +606,7 @@ const Index = () => {
             !contractReadingActive) {
           setIsListening(true);
         }
-      }, 1000);
+      }, voiceRecognitionBufferTimeMs);
     }
   };
   
@@ -533,6 +630,23 @@ const Index = () => {
       floor: 1, 
       location: 'karşıda', 
       roomNumber: 1
+    };
+  };
+
+  // Props for VoiceRecognition in main menu and grade selection
+  const getVoiceRecognitionProps = () => {
+    return {
+      isListening: isListening && !contractReadingActive,
+      onResult: handleVoiceResult,
+      onListeningEnd: () => {
+        // Only automatically turn off the microphone in main menu, not in grade selection
+        if (appState === 'main-menu') {
+          setIsListening(false);
+        }
+      },
+      prompt: voicePrompt,
+      systemLastSpokeTimestamp: systemLastSpokeRef.current,
+      bufferTimeMs: voiceRecognitionBufferTimeMs
     };
   };
 
@@ -634,15 +748,7 @@ const Index = () => {
               {(appState === 'main-menu' || appState === 'grade-selection') && !contractReadingActive && (
                 <div className="mt-4 max-w-4xl mx-auto">
                   <VoiceRecognition 
-                    isListening={isListening && !contractReadingActive} 
-                    onResult={handleVoiceResult}
-                    onListeningEnd={() => {
-                      // Only automatically turn off the microphone in main menu, not in grade selection
-                      if (appState === 'main-menu') {
-                        setIsListening(false);
-                      }
-                    }}
-                    prompt={voicePrompt}
+                    {...getVoiceRecognitionProps()}
                   />
                 </div>
               )}

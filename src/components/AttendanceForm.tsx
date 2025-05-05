@@ -20,6 +20,8 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   const [isReading, setIsReading] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSpeakingRef = useRef(false);
+  const systemLastSpokeRef = useRef<number>(Date.now());
+  const bufferTimeAfterSpeechMs = 1500; // Buffer time to prevent self-triggering
   
   // Clean up timeouts when unmounting
   useEffect(() => {
@@ -35,8 +37,11 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   
   // When component mounts, read instructions
   useEffect(() => {
-    const initialMessage = "Lütfen öğrencinin adını ve soyadını söyleyin.";
-    speakPrompt(initialMessage);
+    // Add a small delay before initial prompt to ensure component is fully mounted
+    setTimeout(() => {
+      const initialMessage = "Lütfen öğrencinin adını ve soyadını söyleyin.";
+      speakPrompt(initialMessage);
+    }, 300);
   }, []);
   
   // Helper function to speak text and manage listening state
@@ -52,15 +57,20 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       onStart: () => {
         isSpeakingRef.current = true;
         setIsReading(true);
+        // Store the timestamp when system starts speaking
+        systemLastSpokeRef.current = Date.now();
       },
       onEnd: () => {
         isSpeakingRef.current = false;
         setIsReading(false);
         
-        // Add a small delay before enabling microphone
+        // Update the timestamp when system stops speaking
+        systemLastSpokeRef.current = Date.now();
+        
+        // Add a longer delay before enabling microphone to prevent self-triggering
         setTimeout(() => {
           setIsListening(true);
-        }, 500);
+        }, bufferTimeAfterSpeechMs);
       }
     });
     
@@ -74,12 +84,26 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       if (isSpeakingRef.current) {
         isSpeakingRef.current = false;
         setIsReading(false);
-        setIsListening(true);
+        
+        // Update the timestamp when system stops speaking
+        systemLastSpokeRef.current = Date.now();
+        
+        // Add buffer time before enabling microphone
+        setTimeout(() => {
+          setIsListening(true);
+        }, bufferTimeAfterSpeechMs);
       }
-    }, estimatedDuration + 1500);
+    }, estimatedDuration + 2000); // Increased safety margin
   };
   
   const handleNameVoiceResult = (text: string) => {
+    // Ignore inputs that come too soon after system speech (probably self-triggered)
+    const timeSinceSystemSpoke = Date.now() - systemLastSpokeRef.current;
+    if (timeSinceSystemSpoke < bufferTimeAfterSpeechMs) {
+      console.log(`Ignoring voice input that came too soon (${timeSinceSystemSpoke}ms) after system speech`);
+      return;
+    }
+    
     // Accept any input for name, no matter how short
     if (text.trim()) {
       setName(text);
@@ -99,6 +123,13 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   };
   
   const handleGradeVoiceResult = (text: string) => {
+    // Ignore inputs that come too soon after system speech (probably self-triggered)
+    const timeSinceSystemSpoke = Date.now() - systemLastSpokeRef.current;
+    if (timeSinceSystemSpoke < bufferTimeAfterSpeechMs) {
+      console.log(`Ignoring voice input that came too soon (${timeSinceSystemSpoke}ms) after system speech`);
+      return;
+    }
+    
     setIsListening(false); // Immediately stop listening
     
     // Try to extract the grade from the spoken text
@@ -121,7 +152,14 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     
     // Always proceed immediately with whatever grade we detected
     speakText(`${detectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`, {
+      onStart: () => {
+        // Update the timestamp when system starts speaking
+        systemLastSpokeRef.current = Date.now();
+      },
       onEnd: () => {
+        // Update the timestamp when system stops speaking
+        systemLastSpokeRef.current = Date.now();
+        
         // Submit after speech has finished
         setTimeout(() => {
           onSubmit(name, detectedGrade);
@@ -145,12 +183,33 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     
     // Submit the form immediately after selecting grade
     speakText(`${selectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`, {
+      onStart: () => {
+        // Update the timestamp when system starts speaking
+        systemLastSpokeRef.current = Date.now();
+      },
       onEnd: () => {
+        // Update the timestamp when system stops speaking
+        systemLastSpokeRef.current = Date.now();
+        
         setTimeout(() => {
           onSubmit(name, selectedGrade);
         }, 500);
       }
     });
+  };
+  
+  // Props to pass to VoiceRecognition component
+  const getVoiceRecognitionProps = () => {
+    return {
+      isListening,
+      onResult: stage === 'name' ? handleNameVoiceResult : handleGradeVoiceResult,
+      onListeningEnd: () => console.log("Listening ended"),
+      prompt: stage === 'name' 
+        ? "Lütfen öğrencinin adını ve soyadını söyleyin..." 
+        : "Öğrencinin sınıfını söyleyin...",
+      systemLastSpokeTimestamp: systemLastSpokeRef.current,
+      bufferTimeMs: bufferTimeAfterSpeechMs
+    };
   };
   
   return (
@@ -209,13 +268,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         <div className="mt-8 flex flex-col items-center">
           <div className={`${isReading ? 'bg-blue-50 border border-blue-200' : ''} rounded-lg p-3 w-full`}>
             <VoiceRecognition 
-              isListening={isListening} 
-              onResult={stage === 'name' ? handleNameVoiceResult : handleGradeVoiceResult}
-              onListeningEnd={() => console.log("Listening ended")}
-              prompt={stage === 'name' 
-                ? "Lütfen öğrencinin adını ve soyadını söyleyin..." 
-                : "Öğrencinin sınıfını söyleyin..."
-              }
+              {...getVoiceRecognitionProps()}
             />
             {isReading && (
               <div className="mt-2 text-center p-2 bg-blue-100 text-blue-800 rounded-lg animate-pulse">
