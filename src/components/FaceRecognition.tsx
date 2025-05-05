@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTheme } from '@/context/ThemeContext';
-import { useNavigate } from 'react-router-dom';
 
 interface FaceRecognitionProps {
   onDetected: () => void;
@@ -25,7 +24,6 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({
   const faceDetectedRef = useRef(false);
   const { isDarkMode } = useTheme();
   const [redirecting, setRedirecting] = useState(false);
-  const navigate = useNavigate();
   
   // Listen for camera status from the Webcam component
   useEffect(() => {
@@ -63,12 +61,6 @@ const FaceRecognition: React.FC<FaceRecognitionProps> = ({
     
     // Call the provided callback
     onDetected();
-    
-    // Set a timeout to actually navigate after animation completes
-    setTimeout(() => {
-      // This timeout ensures UI feedback happens before navigation
-      console.log('Navigating to main menu');
-    }, 1500);
   };
   
   // Listen for the faceDetected event from the Webcam component
