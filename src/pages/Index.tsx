@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import SimpleFaceDetection from '@/components/SimpleFaceDetection';
 import MainMenu from '@/components/MainMenu';
@@ -75,6 +76,7 @@ const Index = () => {
   
   const [contractReadingActive, setContractReadingActive] = useState(false);
   const [lastAppState, setLastAppState] = useState<AppState | null>(null);
+  const [promptAlreadyGiven, setPromptAlreadyGiven] = useState(false);
   
   const appInitialized = useRef(false);
   const { theme, isDarkMode } = useTheme();
@@ -85,6 +87,7 @@ const Index = () => {
     // Store previous state when changing states
     if (appState !== lastAppState) {
       setLastAppState(appState);
+      setPromptAlreadyGiven(false);
       
       // When transitioning between states, always cancel any ongoing speech
       // and stop listening to prevent command overlap
@@ -126,49 +129,67 @@ const Index = () => {
         break;
         
       case 'main-menu': {
-        const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
-        setVoicePrompt(prompt);
-        
-        if (audioEnabled) {
-          speakText(prompt, {
-            onEnd: () => {
-              // Check again if the state is still main-menu and no contract reading is active
+        // Only speak the prompt once
+        if (!promptAlreadyGiven) {
+          const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
+          setVoicePrompt(prompt);
+          setPromptAlreadyGiven(true);
+          
+          if (audioEnabled) {
+            speakText(prompt, {
+              onEnd: () => {
+                // Check again if the state is still main-menu and no contract reading is active
+                if (appState === 'main-menu' && !contractReadingActive) {
+                  setIsListening(true);
+                }
+              }
+            });
+          } else {
+            // Wait a moment before activating microphone
+            setTimeout(() => {
               if (appState === 'main-menu' && !contractReadingActive) {
                 setIsListening(true);
               }
-            }
-          });
+            }, 300);
+          }
         } else {
-          // Wait a moment before activating microphone
-          setTimeout(() => {
-            if (appState === 'main-menu' && !contractReadingActive) {
-              setIsListening(true);
-            }
-          }, 300);
+          // If prompt already given, just enable listening
+          if (!isListening && !isCurrentlySpeaking() && !contractReadingActive) {
+            setIsListening(true);
+          }
         }
         break;
       }
       
       case 'grade-selection': {
-        const prompt = 'Öğrenciniz kaçıncı sınıf?';
-        setVoicePrompt(prompt);
-        
-        if (audioEnabled) {
-          speakText(prompt, {
-            onEnd: () => {
-              // Check again if the state is still grade-selection and no contract reading is active
+        // Only speak the prompt once
+        if (!promptAlreadyGiven) {
+          const prompt = 'Öğrenciniz kaçıncı sınıf?';
+          setVoicePrompt(prompt);
+          setPromptAlreadyGiven(true);
+          
+          if (audioEnabled) {
+            speakText(prompt, {
+              onEnd: () => {
+                // Check again if the state is still grade-selection and no contract reading is active
+                if (appState === 'grade-selection' && !contractReadingActive) {
+                  setIsListening(true);
+                }
+              }
+            });
+          } else {
+            // Wait a moment before activating microphone
+            setTimeout(() => {
               if (appState === 'grade-selection' && !contractReadingActive) {
                 setIsListening(true);
               }
-            }
-          });
+            }, 300);
+          }
         } else {
-          // Wait a moment before activating microphone
-          setTimeout(() => {
-            if (appState === 'grade-selection' && !contractReadingActive) {
-              setIsListening(true);
-            }
-          }, 300);
+          // If prompt already given, just enable listening
+          if (!isListening && !isCurrentlySpeaking() && !contractReadingActive) {
+            setIsListening(true);
+          }
         }
         break;
       }

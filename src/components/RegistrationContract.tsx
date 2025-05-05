@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -214,15 +213,9 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setInstructionsShown(true);
     setIsReading(true);
 
-    // Detailed initial instructions with the new form instruction
+    // SIMPLIFIED: Only the specific instruction message requested
     const initialInstructions = 
-      "Sayın veli, 9. sınıf kayıt sözleşmesini dinlemeye başlamak üzeresiniz. " +
-      "Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları belirleyen yasal bir dokümandır. " +
-      "Sözleşme okunurken lütfen dikkatle dinleyiniz. " +
-      "Aktif olarak okunan paragraf ekranda mavi renk ile vurgulanacaktır. " +
-      "Sayın veli, sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız. " +
-      "Sözleşmenin tamamı okunduktan sonra, sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayarak kayıt formuna geçebilirsiniz. " +
-      "Şimdi sözleşmeyi okumaya başlıyorum.";
+      "Sayın veli sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız.";
     
     await new Promise<void>((resolve) => {
       speakText(initialInstructions, {
@@ -304,17 +297,9 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setCurrentSpeakingIndex(-1);
     setCurrentSection("SONUÇ");
     
+    // SIMPLIFIED: Only the specific instruction message repeated
     const finalInstructions = 
-      "Sayın veli, sözleşmenin okunması tamamlanmıştır. " +
-      "Bu sözleşmeyi dikkatlice dinlediğiniz için teşekkür ederiz. " + 
-      "Lütfen sözleşmeyi anladıktan sonra aşağıda bulunan kağıdı doğru bir şekilde doldurup gösterilen kutuya bırakınız. " +
-      "Şimdi, lütfen okunan sözleşmeyi anladığınızı ve kabul ettiğinizi belirtmek için " + 
-      "sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. " +
-      "Bu işlemi yaptıktan sonra, 9. sınıf kayıt formunu eksiksiz ve doğru bir şekilde doldurmanız gerekmektedir. " +
-      "Formda öğrenci ve veli bilgilerini eksiksiz doldurup, seçilen alanı belirttikten sonra, " +
-      "formu görevli personele teslim ediniz. " +
-      "Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz. " +
-      "Okul yönetimi adına iyi günler dileriz.";
+      "Sayın veli sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız.";
     
     await new Promise<void>((resolve) => {
       speakText(finalInstructions, {

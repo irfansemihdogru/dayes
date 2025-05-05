@@ -1,3 +1,4 @@
+
 /**
  * Speech synthesis utilities to ensure consistent voice output across devices and browsers
  */
@@ -113,7 +114,7 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
 };
 
 // Ensure speech synthesis is properly terminated between utterances
-const ensureSpeechReset = () => {
+const ensureSpeechReset = (): void => {
   // Cancel any ongoing speech
   try {
     if (window.speechSynthesis.speaking) {
@@ -144,7 +145,7 @@ export const clearSpeechQueue = (): void => {
 };
 
 // Process the next item in the speech queue with improved stability
-const processSpeechQueue = () => {
+const processSpeechQueue = (): void => {
   if (speechQueue.length === 0 || isSpeaking) return;
   
   isSpeaking = true;
@@ -198,7 +199,7 @@ const splitTextIntoChunks = (text: string): string[] => {
 };
 
 // Speak a single chunk of text
-const speakSingleChunk = (text: string, options: any) => {
+const speakSingleChunk = (text: string, options: any): void => {
   const utterance = new SpeechSynthesisUtterance(text);
   forceConsistentVoiceSettings(utterance);
   
@@ -253,7 +254,7 @@ const speakSingleChunk = (text: string, options: any) => {
 };
 
 // Speak multiple chunks in sequence
-const speakMultipleChunks = (chunks: string[], options: any) => {
+const speakMultipleChunks = (chunks: string[], options: any): void => {
   let chunkIndex = 0;
   
   const speakNextChunk = () => {

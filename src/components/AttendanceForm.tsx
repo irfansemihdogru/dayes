@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import VoiceRecognition from './VoiceRecognition';
 import { Volume2Icon } from 'lucide-react';
+import { speakText, isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
 
 interface AttendanceFormProps {
   onSubmit: (name: string, grade: number) => void;
@@ -20,56 +21,6 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSpeakingRef = useRef(false);
   
-  // Helper function to speak text
-  const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    
-    // Disable microphone while speaking
-    isSpeakingRef.current = true;
-    setIsReading(true);
-    setIsListening(false);
-    
-    // Cancel any previous speech
-    window.speechSynthesis.cancel();
-    
-    const speech = new SpeechSynthesisUtterance(text);
-    speech.lang = 'tr-TR';
-    speech.rate = 0.9;
-    speech.pitch = 1;
-    speech.volume = 1;
-    
-    speech.onend = () => {
-      isSpeakingRef.current = false;
-      setIsReading(false);
-      // Only enable listening after speech ends
-      setTimeout(() => {
-        setIsListening(true);
-      }, 300); // Short delay to ensure speech is fully finished
-    };
-    
-    speech.onerror = () => {
-      isSpeakingRef.current = false;
-      setIsReading(false);
-      setTimeout(() => {
-        setIsListening(true);
-      }, 300);
-    };
-    
-    // Fallback in case onend doesn't trigger
-    const estimatedDuration = text.length * 70; // ~70ms per character in Turkish
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    
-    timeoutRef.current = setTimeout(() => {
-      isSpeakingRef.current = false;
-      setIsReading(false);
-      setIsListening(true);
-    }, estimatedDuration + 1000); // Longer buffer to ensure speech is completed
-    
-    window.speechSynthesis.speak(speech);
-  };
-  
   // Clean up timeouts when unmounting
   useEffect(() => {
     return () => {
@@ -78,17 +29,55 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       }
       
       // Make sure speech stops when component unmounts
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      cancelSpeech();
     };
   }, []);
   
   // When component mounts, read instructions
   useEffect(() => {
     const initialMessage = "Lütfen öğrencinin adını ve soyadını söyleyin.";
-    speakText(initialMessage);
+    speakPrompt(initialMessage);
   }, []);
+  
+  // Helper function to speak text and manage listening state
+  const speakPrompt = (text: string) => {
+    setIsReading(true);
+    setIsListening(false);
+    
+    // Cancel any ongoing speech
+    cancelSpeech();
+    
+    speakText(text, {
+      rate: 0.9,
+      onStart: () => {
+        isSpeakingRef.current = true;
+        setIsReading(true);
+      },
+      onEnd: () => {
+        isSpeakingRef.current = false;
+        setIsReading(false);
+        
+        // Add a small delay before enabling microphone
+        setTimeout(() => {
+          setIsListening(true);
+        }, 500);
+      }
+    });
+    
+    // Safety timeout in case onEnd doesn't trigger
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    const estimatedDuration = text.length * 80; // Allow more time per character
+    timeoutRef.current = setTimeout(() => {
+      if (isSpeakingRef.current) {
+        isSpeakingRef.current = false;
+        setIsReading(false);
+        setIsListening(true);
+      }
+    }, estimatedDuration + 1500);
+  };
   
   const handleNameVoiceResult = (text: string) => {
     // Accept any input for name, no matter how short
@@ -99,7 +88,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       // Move to grade selection after a short delay
       setTimeout(() => {
         setStage('grade');
-        speakText("Öğrencinin sınıfını söyleyin.");
+        speakPrompt("Öğrencinin sınıfını söyleyin.");
       }, 500);
     } else {
       // If somehow we got empty input, restart listening
@@ -131,12 +120,14 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     setGrade(detectedGrade);
     
     // Always proceed immediately with whatever grade we detected
-    speakText(`${detectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`);
-    
-    // Submit after a short delay to allow speech to start
-    setTimeout(() => {
-      onSubmit(name, detectedGrade);
-    }, 1500);
+    speakText(`${detectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`, {
+      onEnd: () => {
+        // Submit after speech has finished
+        setTimeout(() => {
+          onSubmit(name, detectedGrade);
+        }, 500);
+      }
+    });
   };
   
   const handleSubmit = (e: React.FormEvent) => {
@@ -153,11 +144,13 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     setIsListening(false); // Stop listening when grade is selected
     
     // Submit the form immediately after selecting grade
-    speakText(`${selectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`);
-    
-    setTimeout(() => {
-      onSubmit(name, selectedGrade);
-    }, 1500);
+    speakText(`${selectedGrade}. sınıf seçildi. Devamsızlık bilgileri getiriliyor.`, {
+      onEnd: () => {
+        setTimeout(() => {
+          onSubmit(name, selectedGrade);
+        }, 500);
+      }
+    });
   };
   
   return (
@@ -234,13 +227,13 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
           <div className="mt-4 text-center">
             <button
               type="button"
-              onClick={() => speakText(stage === 'name' 
+              onClick={() => speakPrompt(stage === 'name' 
                 ? "Lütfen öğrencinin adını ve soyadını söyleyin." 
                 : "Öğrencinin sınıfını söyleyin."
               )}
               className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-800 rounded-md hover:bg-blue-200"
               aria-label="Talimatları tekrar dinle"
-              disabled={isSpeakingRef.current}
+              disabled={isCurrentlySpeaking()}
             >
               <Volume2Icon size={18} />
               Talimatları Tekrar Dinle
