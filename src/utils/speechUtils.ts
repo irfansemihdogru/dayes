@@ -1,3 +1,4 @@
+
 /**
  * Speech synthesis utilities to ensure consistent voice output across devices and browsers
  */
@@ -113,7 +114,7 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
 };
 
 // Fix for utterance not completing in some browsers
-const fixChromeSpeechSynthesisBug = (utterance: SpeechSynthesisUtterance): void => {
+const fixChromeSpeechSynthesisBug = (utterance: SpeechSynthesisUtterance): boolean => {
   // Chrome has a bug where utterances longer than ~200 characters can get cut off
   // Split very long text into shorter segments to prevent this
   const maxLength = 120;
@@ -175,7 +176,7 @@ const splitTextIntoSentences = (text: string, maxLength: number): string[] => {
 };
 
 // Ensure speech synthesis is properly terminated between utterances
-const ensureSpeechReset = () => {
+const ensureSpeechReset = (): void => {
   // Cancel any ongoing speech
   try {
     if (window.speechSynthesis.speaking) {
@@ -206,7 +207,7 @@ export const clearSpeechQueue = (): void => {
 };
 
 // Process the next item in the speech queue
-const processSpeechQueue = () => {
+const processSpeechQueue = (): void => {
   if (speechQueue.length === 0 || isSpeaking) return;
   
   isSpeaking = true;
@@ -279,7 +280,7 @@ const processSpeechQueue = () => {
 // Modified function to check if speech synthesis is currently speaking
 export const isCurrentlySpeaking = (): boolean => {
   if (!('speechSynthesis' in window)) return false;
-  return isSpeaking || window.speechSynthesis.speaking || window.speechSynthesis.pending;
+  return isSpeaking || (window.speechSynthesis.speaking || false) || (window.speechSynthesis.pending || false);
 };
 
 // Cancel current speech
@@ -304,7 +305,7 @@ export const speakText = (
 ): void => {
   if (!('speechSynthesis' in window)) {
     console.error('Speech synthesis not supported');
-    options.onEnd?.();
+    if (options.onEnd) options.onEnd();
     return;
   }
   
@@ -315,7 +316,7 @@ export const speakText = (
     .trim();
   
   // Cancel existing speech to prevent overlaps
-  if (isSpeaking || window.speechSynthesis.speaking) {
+  if (isSpeaking || (window.speechSynthesis.speaking || false)) {
     window.speechSynthesis.cancel();
     isSpeaking = false;
     currentUtterance = null;
