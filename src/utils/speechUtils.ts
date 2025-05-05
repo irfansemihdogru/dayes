@@ -97,8 +97,8 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
   // Always set Turkish language
   utterance.lang = 'tr-TR';
   
-  // Consistent speech parameters
-  utterance.rate = 0.95; // Slightly slower than default for better clarity
+  // Consistent speech parameters - reduced rate for clarity
+  utterance.rate = 0.9;  // Slightly slower than default for better clarity
   utterance.pitch = 1;   // Normal pitch
   utterance.volume = 1;  // Full volume
   
@@ -143,7 +143,7 @@ export const clearSpeechQueue = (): void => {
   currentUtterance = null;
 };
 
-// Process the next item in the speech queue
+// Process the next item in the speech queue with improved stability
 const processSpeechQueue = () => {
   if (speechQueue.length === 0 || isSpeaking) return;
   
@@ -151,21 +151,69 @@ const processSpeechQueue = () => {
   const item = speechQueue.shift();
   if (!item) return;
   
-  const utterance = new SpeechSynthesisUtterance(item.text);
+  // For longer texts, split into smaller chunks to prevent pauses
+  const chunks = splitTextIntoChunks(item.text);
+  
+  if (chunks.length === 1) {
+    // Short text, speak normally
+    speakSingleChunk(chunks[0], item.options);
+  } else {
+    // Longer text, speak in chunks
+    speakMultipleChunks(chunks, item.options);
+  }
+};
+
+// Split longer texts into sentence-based chunks to prevent pauses
+const splitTextIntoChunks = (text: string): string[] => {
+  // If text is short, no need to split
+  if (text.length < 150) return [text];
+  
+  // Split by sentence endings
+  const sentenceRegex = /[.!?]+\s+/g;
+  const sentences = text.split(sentenceRegex);
+  
+  // Create chunks of reasonable length (combining sentences)
+  const chunks: string[] = [];
+  let currentChunk = "";
+  
+  for (const sentence of sentences) {
+    const potentialChunk = currentChunk + sentence + ". ";
+    
+    if (potentialChunk.length > 100) {
+      // Chunk is getting large, save it and start a new one
+      chunks.push(currentChunk.trim());
+      currentChunk = sentence + ". ";
+    } else {
+      // Add to current chunk
+      currentChunk = potentialChunk;
+    }
+  }
+  
+  // Add the last chunk if not empty
+  if (currentChunk.trim().length > 0) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
+};
+
+// Speak a single chunk of text
+const speakSingleChunk = (text: string, options: any) => {
+  const utterance = new SpeechSynthesisUtterance(text);
   forceConsistentVoiceSettings(utterance);
   
   // Store the current utterance for control
   currentUtterance = utterance;
   
   // Apply custom options
-  if (item.options.rate !== undefined) utterance.rate = item.options.rate;
-  if (item.options.pitch !== undefined) utterance.pitch = item.options.pitch;
-  if (item.options.volume !== undefined) utterance.volume = item.options.volume;
+  if (options.rate !== undefined) utterance.rate = options.rate;
+  if (options.pitch !== undefined) utterance.pitch = options.pitch;
+  if (options.volume !== undefined) utterance.volume = options.volume;
   
   // Event handlers
-  if (item.options.onStart) {
+  if (options.onStart) {
     utterance.onstart = () => {
-      item.options.onStart();
+      options.onStart();
     };
   }
   
@@ -173,7 +221,7 @@ const processSpeechQueue = () => {
   utterance.onend = () => {
     isSpeaking = false;
     currentUtterance = null;
-    if (item.options.onEnd) item.options.onEnd();
+    if (options.onEnd) options.onEnd();
     setTimeout(() => processSpeechQueue(), 100); // Process next item with a small delay
   };
   
@@ -181,24 +229,77 @@ const processSpeechQueue = () => {
     console.error('Speech synthesis error:', event);
     isSpeaking = false;
     currentUtterance = null;
-    if (item.options.onEnd) item.options.onEnd();
+    if (options.onEnd) options.onEnd();
     setTimeout(() => processSpeechQueue(), 100);
   };
-  
-  // Fallback for browsers that don't properly fire events
-  const estimatedDuration = Math.min((item.text.length * 60) + 1000, 10000); // Cap at 10 seconds max
-  setTimeout(() => {
-    if (isSpeaking) {
-      isSpeaking = false;
-      currentUtterance = null;
-      if (item.options.onEnd) item.options.onEnd();
-      processSpeechQueue();
-    }
-  }, estimatedDuration);
   
   // Speak the text
   ensureSpeechReset();
   window.speechSynthesis.speak(utterance);
+  
+  // Chrome and some browsers can pause synthesis - this keeps it active
+  if (window.speechSynthesis && 'chrome' in window) {
+    const resumeInterval = setInterval(() => {
+      if (!isSpeaking) {
+        clearInterval(resumeInterval);
+        return;
+      }
+      
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    }, 1000);
+  }
+};
+
+// Speak multiple chunks in sequence
+const speakMultipleChunks = (chunks: string[], options: any) => {
+  let chunkIndex = 0;
+  
+  const speakNextChunk = () => {
+    if (chunkIndex >= chunks.length) {
+      // All chunks complete
+      isSpeaking = false;
+      currentUtterance = null;
+      if (options.onEnd) options.onEnd();
+      setTimeout(() => processSpeechQueue(), 100);
+      return;
+    }
+    
+    const chunk = chunks[chunkIndex];
+    chunkIndex++;
+    
+    const utterance = new SpeechSynthesisUtterance(chunk);
+    forceConsistentVoiceSettings(utterance);
+    currentUtterance = utterance;
+    
+    // Apply custom options
+    if (options.rate !== undefined) utterance.rate = options.rate;
+    if (options.pitch !== undefined) utterance.pitch = options.pitch;
+    if (options.volume !== undefined) utterance.volume = options.volume;
+    
+    // Only call onStart for the first chunk
+    if (chunkIndex === 1 && options.onStart) {
+      utterance.onstart = () => {
+        options.onStart();
+      };
+    }
+    
+    utterance.onend = () => {
+      // Small pause between chunks for natural speech
+      setTimeout(speakNextChunk, 50);
+    };
+    
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error in chunk:', event);
+      speakNextChunk(); // Continue to next chunk even on error
+    };
+    
+    window.speechSynthesis.speak(utterance);
+  };
+  
+  // Start speaking chunks
+  speakNextChunk();
 };
 
 // Modified function to check if speech synthesis is currently speaking
@@ -229,15 +330,8 @@ export const speakText = (
 ): void => {
   if (!('speechSynthesis' in window)) {
     console.error('Speech synthesis not supported');
-    options.onEnd?.();
+    if (options.onEnd) options.onEnd();
     return;
-  }
-  
-  // Cancel existing speech to prevent overlaps
-  if (isSpeaking || window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
-    isSpeaking = false;
-    currentUtterance = null;
   }
   
   // Add to queue and process
@@ -252,7 +346,7 @@ export default {
   speakText,
   initSpeechSynthesis,
   getBestTurkishVoice,
-  isCurrentlySpeaking: isCurrentlySpeaking,
+  isCurrentlySpeaking,
   cancelSpeech,
   clearSpeechQueue
 };

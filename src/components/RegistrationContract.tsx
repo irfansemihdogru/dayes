@@ -214,12 +214,13 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setInstructionsShown(true);
     setIsReading(true);
 
-    // Detailed initial instructions
+    // Detailed initial instructions with the new form instruction
     const initialInstructions = 
       "Sayın veli, 9. sınıf kayıt sözleşmesini dinlemeye başlamak üzeresiniz. " +
       "Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları belirleyen yasal bir dokümandır. " +
       "Sözleşme okunurken lütfen dikkatle dinleyiniz. " +
       "Aktif olarak okunan paragraf ekranda mavi renk ile vurgulanacaktır. " +
+      "Sayın veli, sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız. " +
       "Sözleşmenin tamamı okunduktan sonra, sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayarak kayıt formuna geçebilirsiniz. " +
       "Şimdi sözleşmeyi okumaya başlıyorum.";
     
@@ -306,6 +307,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     const finalInstructions = 
       "Sayın veli, sözleşmenin okunması tamamlanmıştır. " +
       "Bu sözleşmeyi dikkatlice dinlediğiniz için teşekkür ederiz. " + 
+      "Lütfen sözleşmeyi anladıktan sonra aşağıda bulunan kağıdı doğru bir şekilde doldurup gösterilen kutuya bırakınız. " +
       "Şimdi, lütfen okunan sözleşmeyi anladığınızı ve kabul ettiğinizi belirtmek için " + 
       "sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. " +
       "Bu işlemi yaptıktan sonra, 9. sınıf kayıt formunu eksiksiz ve doğru bir şekilde doldurmanız gerekmektedir. " +
@@ -346,6 +348,9 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
             <p className={`mt-2 ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>
               Sözleşme okunurken lütfen bekleyiniz ve sözleşme tamamlanana kadar sayfadan ayrılmayınız.
             </p>
+            <p className={`mt-2 font-medium ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>
+              Sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız.
+            </p>
           </div>
         )}
         
@@ -381,6 +386,9 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
               <p className={`mt-2 ${isDarkMode ? 'text-green-200' : 'text-green-600'}`}>
                 Lütfen kayıt formunu eksiksiz ve doğru bir şekilde doldurunuz. Form doldurulduktan sonra çıktısını alıp, 
                 imzalayarak görevli personele teslim etmeniz gerekmektedir.
+              </p>
+              <p className={`mt-2 font-medium ${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>
+                Ayrıca sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakmayı unutmayınız.
               </p>
             </div>
           ) : (
