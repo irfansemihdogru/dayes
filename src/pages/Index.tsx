@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import SimpleFaceDetection from '@/components/SimpleFaceDetection';
 import MainMenu from '@/components/MainMenu';
@@ -301,8 +300,23 @@ const Index = () => {
       cancelSpeech();
       setIsListening(false);
       
+      // Add a visual transition delay before switching states
       setTimeout(() => {
-        safeSetAppState('main-menu');
+        // Ensure we're still in face-recognition state before transitioning
+        if (appState === 'face-recognition') {
+          console.log('Transitioning to main menu');
+          safeSetAppState('main-menu');
+          
+          // Announce successful face detection and menu options after transition
+          setTimeout(() => {
+            if (audioEnabled) {
+              speakText('Yüzünüz başarıyla tanındı. İşlem menüsü açılıyor.', {
+                rate: 0.7,
+                // The MainMenu component will handle its own voice prompts
+              });
+            }
+          }, 500);
+        }
       }, 1000);
     }
   };
@@ -353,7 +367,7 @@ const Index = () => {
     
     if (!audioEnabled) {
       setTimeout(() => {
-        speakText('Sesli yönlendirme etkinleştirildi.', {
+        speakText('Sesli yönlendirmeyi etkinleştirildi.', {
           rate: 0.7 // Slower for better comprehension
         });
       }, 300);

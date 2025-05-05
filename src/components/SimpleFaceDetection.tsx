@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTheme } from '@/context/ThemeContext';
+import { useNavigate } from 'react-router-dom';
 
 interface SimpleFaceDetectionProps {
   onDetected: () => void;
@@ -21,10 +22,13 @@ const SimpleFaceDetection: React.FC<SimpleFaceDetectionProps> = ({ onDetected, i
   const detectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const { isDarkMode } = useTheme();
+  const detectionProgressRef = useRef(0);
+  const [detectionProgress, setDetectionProgress] = useState(0);
+  const animationFrameRef = useRef<number | null>(null);
   
-  // Setup camera and detection timeout
+  // Setup camera and detection process
   useEffect(() => {
-    console.log('Setting up face detection demo');
+    console.log('Setting up face detection with realistic demo');
     
     // Setup camera
     const setupCamera = async () => {
@@ -57,17 +61,8 @@ const SimpleFaceDetection: React.FC<SimpleFaceDetectionProps> = ({ onDetected, i
               canvasRef.current.width = videoRef.current.videoWidth || 640;
               canvasRef.current.height = videoRef.current.videoHeight || 480;
               
-              // Draw detection UI - just a simple outline for demo
-              const ctx = canvasRef.current.getContext('2d');
-              if (ctx) {
-                ctx.strokeStyle = 'green';
-                ctx.lineWidth = 3;
-                
-                // Draw a detection rectangle in the middle
-                const centerX = (canvasRef.current.width / 2) - 75;
-                const centerY = (canvasRef.current.height / 2) - 75;
-                ctx.strokeRect(centerX, centerY, 150, 150);
-              }
+              // Start the face detection simulator
+              startDetectionSimulation();
             }
           };
         }
@@ -80,22 +75,112 @@ const SimpleFaceDetection: React.FC<SimpleFaceDetectionProps> = ({ onDetected, i
       }
     };
     
-    setupCamera();
-    
-    // Demo mode: Set timeout to simulate face detection after 3 seconds
-    detectionTimeoutRef.current = setTimeout(() => {
-      console.log('Demo face detection timeout triggered');
-      if (detecting) {
-        setFaceDetected(true);
+    // Start a more realistic detection simulation that progressively increases
+    const startDetectionSimulation = () => {
+      // Reset progress
+      detectionProgressRef.current = 0;
+      setDetectionProgress(0);
+      
+      // Animate the detection - gradually increases from 0 to 100%
+      const simulateDetection = () => {
+        if (!detecting) return;
         
-        // Only complete detection if welcome message is not playing
-        if (!isWelcomeMessagePlaying) {
-          console.log('Detected face, proceeding to next step');
-          setDetecting(false);
-          onDetected();
+        // Simulate small random increments (more realistic)
+        if (detectionProgressRef.current < 100) {
+          // Generate a random increment between 1 and 5
+          const increment = Math.random() * 3 + 1;
+          
+          // Add some variability - sometimes pause or go slower
+          if (Math.random() > 0.3) {
+            detectionProgressRef.current += increment;
+            setDetectionProgress(Math.min(detectionProgressRef.current, 100));
+          }
+          
+          // Drawing on canvas to simulate detection
+          if (canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            if (ctx) {
+              ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+              
+              // Only draw detection box once we're past 30% progress
+              if (detectionProgressRef.current > 30) {
+                // Center coordinates
+                const centerX = canvasRef.current.width / 2;
+                const centerY = canvasRef.current.height / 2;
+                
+                // Draw face outline - size increases with detection progress
+                const size = 100 + (detectionProgressRef.current / 100) * 100;
+                
+                // Draw different elements based on progress
+                if (detectionProgressRef.current > 80) {
+                  // Face recognized - green box
+                  ctx.strokeStyle = '#10b981'; // green
+                  ctx.lineWidth = 3;
+                  ctx.strokeRect(centerX - size/2, centerY - size/2, size, size);
+                  
+                  // Add facial feature markers
+                  ctx.fillStyle = '#10b981';
+                  // Eyes
+                  ctx.beginPath();
+                  ctx.arc(centerX - size/6, centerY - size/8, 5, 0, Math.PI * 2);
+                  ctx.fill();
+                  ctx.beginPath();
+                  ctx.arc(centerX + size/6, centerY - size/8, 5, 0, Math.PI * 2);
+                  ctx.fill();
+                  
+                  // Mouth outline
+                  ctx.beginPath();
+                  ctx.arc(centerX, centerY + size/6, size/5, 0, Math.PI);
+                  ctx.stroke();
+                } else if (detectionProgressRef.current > 40) {
+                  // Scanning - yellow box
+                  ctx.strokeStyle = '#eab308'; // yellow
+                  ctx.lineWidth = 2;
+                  ctx.strokeRect(centerX - size/2, centerY - size/2, size, size);
+                  
+                  // Scanning lines
+                  ctx.beginPath();
+                  ctx.moveTo(centerX - size/2, centerY);
+                  ctx.lineTo(centerX + size/2, centerY);
+                  ctx.stroke();
+                  
+                  ctx.beginPath();
+                  ctx.moveTo(centerX, centerY - size/2);
+                  ctx.lineTo(centerX, centerY + size/2);
+                  ctx.stroke();
+                } else {
+                  // Initial detection - blue box
+                  ctx.strokeStyle = '#3b82f6'; // blue
+                  ctx.lineWidth = 1;
+                  ctx.strokeRect(centerX - size/2, centerY - size/2, size, size);
+                }
+              }
+            }
+          }
+          
+          // Continue animation
+          animationFrameRef.current = requestAnimationFrame(simulateDetection);
+        } else {
+          // Detection complete
+          console.log('Face detection simulation complete');
+          setFaceDetected(true);
+          
+          // Wait a moment before calling onDetected
+          setTimeout(() => {
+            if (!isWelcomeMessagePlaying) {
+              console.log('Detected face, proceeding to next step');
+              setDetecting(false);
+              onDetected();
+            }
+          }, 1000);
         }
-      }
-    }, 5000);
+      };
+      
+      // Start the animation
+      animationFrameRef.current = requestAnimationFrame(simulateDetection);
+    };
+    
+    setupCamera();
     
     // Cleanup function
     return () => {
@@ -104,6 +189,9 @@ const SimpleFaceDetection: React.FC<SimpleFaceDetectionProps> = ({ onDetected, i
       }
       if (detectionTimeoutRef.current) {
         clearTimeout(detectionTimeoutRef.current);
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
     };
   }, [onDetected, isWelcomeMessagePlaying]);
@@ -155,6 +243,23 @@ const SimpleFaceDetection: React.FC<SimpleFaceDetectionProps> = ({ onDetected, i
             {faceDetected && (
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-full">
                 Yüz tespit edildi!
+              </div>
+            )}
+            
+            {/* Detection progress indicator */}
+            {detecting && cameraActive && !faceDetected && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-3/4 max-w-md">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-600 dark:bg-blue-500 h-2.5 rounded-full transition-all duration-300" 
+                    style={{ width: `${detectionProgress}%` }}
+                  ></div>
+                </div>
+                <div className="text-sm mt-1 text-gray-600 dark:text-gray-300">
+                  {detectionProgress < 30 ? 'Yüz araştırılıyor...' : 
+                   detectionProgress < 70 ? 'Yüz özellikleriniz taranıyor...' : 
+                   'Yüz tanıma tamamlanıyor...'}
+                </div>
               </div>
             )}
           </div>
