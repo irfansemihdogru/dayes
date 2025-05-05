@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import SimpleFaceDetection from '@/components/SimpleFaceDetection';
 import MainMenu from '@/components/MainMenu';
@@ -75,40 +76,69 @@ const Index = () => {
   
   const [contractReadingActive, setContractReadingActive] = useState(false);
   const [lastAppState, setLastAppState] = useState<AppState | null>(null);
+  const [stateTransitioning, setStateTransitioning] = useState(false);
   
   const appInitialized = useRef(false);
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const stateTransitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Enhanced state transition management with cooldown to prevent accidental transitions
+  const safeSetAppState = (newState: AppState) => {
+    if (stateTransitioning) {
+      console.log("State transition already in progress, ignoring", newState);
+      return;
+    }
+    
+    // Set transitioning flag to prevent multiple rapid transitions
+    setStateTransitioning(true);
+    
+    // Cancel any ongoing speech and clear timeouts
+    cancelSpeech();
+    if (voiceCommandTimeoutRef.current) {
+      clearTimeout(voiceCommandTimeoutRef.current);
+      voiceCommandTimeoutRef.current = null;
+    }
+    
+    // Store the current state before changing
+    setLastAppState(appState);
+    
+    // Set the new state
+    setAppState(newState);
+    
+    // Clear transition lock after a short delay
+    stateTransitionTimeoutRef.current = setTimeout(() => {
+      setStateTransitioning(false);
+    }, 1500);  // 1.5 seconds cooldown between state transitions
+  };
   
   // This effect handles state transitions and prevents overlapping voice commands
   useEffect(() => {
-    // Store previous state when changing states
+    // When transitioning between states, always cancel any ongoing speech
+    // and stop listening to prevent command overlap
     if (appState !== lastAppState) {
-      setLastAppState(appState);
-      
-      // When transitioning between states, always cancel any ongoing speech
-      // and stop listening to prevent command overlap
       cancelSpeech();
       setIsListening(false);
-      
-      // If transitioning away from grade-selection or main-menu, clear any timeouts
-      if (voiceCommandTimeoutRef.current) {
-        clearTimeout(voiceCommandTimeoutRef.current);
-        voiceCommandTimeoutRef.current = null;
-      }
       
       // Add a delay before initializing voice for the new state
       // to ensure any previous speech/recognition is fully stopped
       setTimeout(() => {
         initializeStateVoice(appState);
-      }, 500);
+      }, 800); // Longer delay for more reliable state transition
     }
-  }, [appState]);
+    
+    // Cleanup on unmount
+    return () => {
+      if (stateTransitionTimeoutRef.current) {
+        clearTimeout(stateTransitionTimeoutRef.current);
+      }
+    };
+  }, [appState, lastAppState]);
   
   // New function to initialize voice interactions for each state
   const initializeStateVoice = (state: AppState) => {
-    // Don't enable listening if contract reading is active
-    if (contractReadingActive) {
+    // Don't enable listening if contract reading is active or we're transitioning
+    if (contractReadingActive || stateTransitioning) {
       return;
     }
     
@@ -131,17 +161,18 @@ const Index = () => {
         
         if (audioEnabled) {
           speakText(prompt, {
+            rate: 0.7, // Slower for better comprehension
             onEnd: () => {
-              // Check again if the state is still main-menu and no contract reading is active
-              if (appState === 'main-menu' && !contractReadingActive) {
-                setIsListening(true);
+              // Check if state is still main-menu before activating microphone
+              if (appState === 'main-menu' && !contractReadingActive && !stateTransitioning) {
+                setTimeout(() => setIsListening(true), 300);
               }
             }
           });
         } else {
           // Wait a moment before activating microphone
           setTimeout(() => {
-            if (appState === 'main-menu' && !contractReadingActive) {
+            if (appState === 'main-menu' && !contractReadingActive && !stateTransitioning) {
               setIsListening(true);
             }
           }, 300);
@@ -155,17 +186,18 @@ const Index = () => {
         
         if (audioEnabled) {
           speakText(prompt, {
+            rate: 0.7, // Slower for better comprehension
             onEnd: () => {
-              // Check again if the state is still grade-selection and no contract reading is active
-              if (appState === 'grade-selection' && !contractReadingActive) {
-                setIsListening(true);
+              // Check if state is still grade-selection before activating microphone
+              if (appState === 'grade-selection' && !contractReadingActive && !stateTransitioning) {
+                setTimeout(() => setIsListening(true), 300);
               }
             }
           });
         } else {
           // Wait a moment before activating microphone
           setTimeout(() => {
-            if (appState === 'grade-selection' && !contractReadingActive) {
+            if (appState === 'grade-selection' && !contractReadingActive && !stateTransitioning) {
               setIsListening(true);
             }
           }, 300);
@@ -199,7 +231,7 @@ const Index = () => {
           // Contract reading has finished, re-initialize voice for current state after a delay
           setTimeout(() => {
             initializeStateVoice(appState);
-          }, 800);
+          }, 1000);
         }
       }
     };
@@ -224,12 +256,6 @@ const Index = () => {
     initSpeechSynthesis().then(() => {
       console.log('Speech synthesis initialized');
     });
-    
-    // Listen for contract reading status
-    
-    
-    // Cancel any ongoing speech when the page unloads
-    
   }, []);
   
   useEffect(() => {
@@ -244,8 +270,6 @@ const Index = () => {
     }
   }, [appState, audioEnabled]);
   
-  // Clear any active timeouts when app state changes and manage listening state
-  
   const speakWelcomeMessage = () => {
     if (!audioEnabled) {
       setWelcomeMessagePlaying(false);
@@ -258,6 +282,7 @@ const Index = () => {
     const welcomeText = "Yıldırım Ticaret Meslek ve Teknik Anadolu Lisesi Veli Yönlendirme Sistemine hoş geldiniz. Lütfen kameraya bakarak yüzünüzün algılanmasını bekleyiniz.";
     
     speakText(welcomeText, {
+      rate: 0.7, // Slower for better comprehension
       onStart: () => {
         setWelcomeMessagePlaying(true);
       },
@@ -277,7 +302,7 @@ const Index = () => {
       setIsListening(false);
       
       setTimeout(() => {
-        setAppState('main-menu');
+        safeSetAppState('main-menu');
       }, 1000);
     }
   };
@@ -304,6 +329,11 @@ const Index = () => {
       voiceCommandTimeoutRef.current = null;
     }
     
+    if (stateTransitionTimeoutRef.current) {
+      clearTimeout(stateTransitionTimeoutRef.current);
+      stateTransitionTimeoutRef.current = null;
+    }
+    
     // Clear speech queue
     clearSpeechQueue();
     
@@ -312,7 +342,7 @@ const Index = () => {
   };
   
   const handleStartApp = () => {
-    setAppState('face-recognition');
+    safeSetAppState('face-recognition');
   };
   
   const toggleAudio = () => {
@@ -323,7 +353,9 @@ const Index = () => {
     
     if (!audioEnabled) {
       setTimeout(() => {
-        speakText('Sesli yönlendirme etkinleştirildi.');
+        speakText('Sesli yönlendirme etkinleştirildi.', {
+          rate: 0.7 // Slower for better comprehension
+        });
       }, 300);
     }
   };
@@ -336,40 +368,40 @@ const Index = () => {
     setSelectedService(service);
     
     if (service === 'devamsizlik') {
-      setAppState('devamsizlik-form');
+      safeSetAppState('devamsizlik-form');
       return;
     }
     
     if (service === '9-sinif-kayit') {
-      setAppState('registration-contract');
+      safeSetAppState('registration-contract');
       return;
     }
     
     if (service === 'disiplin') {
       setDirectedStaff('OKAN KARAHAN');
-      setAppState('staff-direction');
+      safeSetAppState('staff-direction');
       return;
     }
     
     if (service === 'diploma') {
       setDirectedStaff('YENER HANCI');
-      setAppState('staff-direction');
+      safeSetAppState('staff-direction');
       return;
     }
     
     if (service === 'ogrenci-alma-izni') {
       setDirectedStaff('OKAN KARAHAN');
-      setAppState('staff-direction');
+      safeSetAppState('staff-direction');
       return;
     }
     
     if (serviceToStaff[service]) {
       setDirectedStaff(serviceToStaff[service]);
-      setAppState('staff-direction');
+      safeSetAppState('staff-direction');
       return;
     }
     
-    setAppState('grade-selection');
+    safeSetAppState('grade-selection');
   };
   
   const handleGradeSelection = (grade: number) => {
@@ -382,7 +414,7 @@ const Index = () => {
     const staff = gradeToStaff[grade.toString()];
     if (staff) {
       setDirectedStaff(staff);
-      setAppState('staff-direction');
+      safeSetAppState('staff-direction');
     }
   };
   
@@ -391,26 +423,26 @@ const Index = () => {
     cancelSpeech();
     setStudentName(name);
     setStudentSurname(surname);
-    setAppState('devamsizlik-table');
+    safeSetAppState('devamsizlik-table');
   };
   
   const handleDevamsizlikTimeout = () => {
-    setAppState('main-menu');
+    safeSetAppState('main-menu');
   };
   
   const handleContractComplete = () => {
-    setAppState('registration-form');
+    safeSetAppState('registration-form');
   };
   
   const handleRegistrationFormSubmit = () => {
     // Reset to main menu after registration
-    setAppState('main-menu');
+    safeSetAppState('main-menu');
   };
   
   const handleVoiceResult = async (text: string) => {
-    // Ignore voice commands if contract is being read
-    if (contractReadingActive) {
-      console.log("Contract reading active, ignoring voice command");
+    // Ignore voice commands if contract is being read or during state transition
+    if (contractReadingActive || stateTransitioning) {
+      console.log("Contract reading active or state transitioning, ignoring voice command");
       return;
     }
     
@@ -439,19 +471,20 @@ const Index = () => {
         // If we get here, no valid intent was found
         if (audioEnabled) {
           speakText("Lütfen geçerli bir işlem belirtin", {
+            rate: 0.7, // Slower for better comprehension
             onEnd: () => {
-              if (appState === 'main-menu') {
-                setIsListening(true);
+              if (appState === 'main-menu' && !stateTransitioning) {
+                setTimeout(() => setIsListening(true), 300);
               }
             }
           });
         } else {
           // Re-enable listening after a short delay if still in the same state
           setTimeout(() => {
-            if (appState === 'main-menu') {
+            if (appState === 'main-menu' && !stateTransitioning) {
               setIsListening(true);
             }
-          }, 300);
+          }, 500);
         }
       } else if (appState === 'grade-selection' && result.grade) {
         const grade = parseInt(result.grade);
@@ -462,19 +495,20 @@ const Index = () => {
           // If grade is not valid, provide feedback and resume listening
           if (audioEnabled) {
             speakText("Lütfen geçerli bir sınıf belirtin", {
+              rate: 0.7, // Slower for better comprehension
               onEnd: () => {
-                if (appState === 'grade-selection') {
-                  setIsListening(true);
+                if (appState === 'grade-selection' && !stateTransitioning) {
+                  setTimeout(() => setIsListening(true), 300);
                 }
               }
             });
           } else {
             // Re-enable listening after a short delay if still in the same state
             setTimeout(() => {
-              if (appState === 'grade-selection') {
+              if (appState === 'grade-selection' && !stateTransitioning) {
                 setIsListening(true);
               }
-            }, 300);
+            }, 500);
           }
         }
       }
@@ -485,7 +519,8 @@ const Index = () => {
       setTimeout(() => {
         if ((appState === 'main-menu' || appState === 'grade-selection') && 
             !isCurrentlySpeaking() && 
-            !contractReadingActive) {
+            !contractReadingActive &&
+            !stateTransitioning) {
           setIsListening(true);
         }
       }, 1000);
@@ -610,10 +645,10 @@ const Index = () => {
                 )}
               </div>
               
-              {(appState === 'main-menu' || appState === 'grade-selection') && !contractReadingActive && (
+              {(appState === 'main-menu' || appState === 'grade-selection') && !contractReadingActive && !stateTransitioning && (
                 <div className="mt-4 max-w-4xl mx-auto">
                   <VoiceRecognition 
-                    isListening={isListening && !contractReadingActive} 
+                    isListening={isListening && !contractReadingActive && !stateTransitioning} 
                     onResult={handleVoiceResult}
                     onListeningEnd={() => {
                       // Only automatically turn off the microphone in main menu, not in grade selection

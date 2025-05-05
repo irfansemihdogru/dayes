@@ -214,18 +214,21 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setInstructionsShown(true);
     setIsReading(true);
 
-    // Detailed initial instructions
+    // Enhanced initial instructions with more clarity for visually and hearing impaired users
     const initialInstructions = 
       "Sayın veli, 9. sınıf kayıt sözleşmesini dinlemeye başlamak üzeresiniz. " +
       "Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları belirleyen yasal bir dokümandır. " +
       "Sözleşme okunurken lütfen dikkatle dinleyiniz. " +
       "Aktif olarak okunan paragraf ekranda mavi renk ile vurgulanacaktır. " +
-      "Sözleşmenin tamamı okunduktan sonra, sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayarak kayıt formuna geçebilirsiniz. " +
+      "Sözleşmenin tamamı okunduktan sonra, sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayarak kayıt formuna geçebilirsiniz. " + 
+      "Lütfen unutmayınız, kayıt formunu doldurduktan sonra çıktısını almalı ve sağ tarafta bulunan başvuru kutusuna bırakmalısınız. " +
       "Şimdi sözleşmeyi okumaya başlıyorum.";
     
     await new Promise<void>((resolve) => {
       speakText(initialInstructions, {
-        rate: 0.75,
+        rate: 0.7, // Slower rate for better comprehension
+        pitch: 1.0, // Normal pitch for clarity
+        volume: 1.0, // Full volume
         onEnd: () => {
           // Short pause before starting the actual contract
           setTimeout(() => {
@@ -261,9 +264,10 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       // Announce the section title first
       await new Promise<void>((resolve) => {
         speakText(section.announcement, {
-          rate: 0.75,
+          rate: 0.7, // Slower rate for better comprehension
           pitch: 1.0,
-          onEnd: () => setTimeout(resolve, 500)
+          volume: 1.0,
+          onEnd: () => setTimeout(resolve, 800) // Longer pause after section announcement
         });
       });
       
@@ -273,12 +277,12 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
           
           await new Promise<void>((resolve) => {
             speakText(contractParagraphs[currentParaIndex], {
-              rate: 0.7, // Slower rate for better comprehension
+              rate: 0.65, // Even slower rate for better comprehension
               pitch: 1.0,
               volume: 1.0,
               onEnd: () => {
-                // Pause after each paragraph for better comprehension
-                setTimeout(resolve, 400);
+                // Slightly longer pause after each paragraph for better comprehension
+                setTimeout(resolve, 600);
               }
             });
           });
@@ -286,8 +290,8 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         currentParaIndex++;
       }
       
-      // Pause between sections
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Longer pause between sections
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
     // Show final instructions
@@ -310,13 +314,16 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       "sayfanın alt kısmındaki 'Sözleşmeyi Anladım' butonuna tıklayınız. " +
       "Bu işlemi yaptıktan sonra, 9. sınıf kayıt formunu eksiksiz ve doğru bir şekilde doldurmanız gerekmektedir. " +
       "Formda öğrenci ve veli bilgilerini eksiksiz doldurup, seçilen alanı belirttikten sonra, " +
-      "formu görevli personele teslim ediniz. " +
+      "formu görevli personele teslim ediniz veya sağ tarafta bulunan başvuru kutusuna bırakınız. " +
+      "Size verilen kağıt ve kalemi kullanarak formu doldurabilirsiniz. " +
       "Herhangi bir sorunuz varsa okul yönetimine başvurabilirsiniz. " +
       "Okul yönetimi adına iyi günler dileriz.";
     
     await new Promise<void>((resolve) => {
       speakText(finalInstructions, {
-        rate: 0.75,
+        rate: 0.7, // Slower rate for better comprehension
+        pitch: 1.0,
+        volume: 1.0,
         onEnd: () => resolve()
       });
     });
@@ -338,13 +345,13 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
             <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>
               Lütfen Dikkat
             </h3>
-            <p className={`${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>
+            <p className={`${isDarkMode ? 'text-amber-100' : 'text-amber-700'} text-lg leading-relaxed`}>
               Sayın veli, 9. sınıf kayıt sözleşmesini dinlemeye başlamak üzeresiniz. 
               Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları belirleyen yasal bir dokümandır.
               Lütfen sözleşmeyi dikkatle dinleyiniz. Okunan paragraf ekranda vurgulanacaktır.
             </p>
-            <p className={`mt-2 ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>
-              Sözleşme okunurken lütfen bekleyiniz ve sözleşme tamamlanana kadar sayfadan ayrılmayınız.
+            <p className={`mt-3 ${isDarkMode ? 'text-amber-100' : 'text-amber-700'} text-lg leading-relaxed`}>
+              <strong>Önemli:</strong> Sözleşme tamamlandıktan sonra, kayıt formunu doldurarak sağ taraftaki başvuru kutusuna bırakmanız gerekmektedir.
             </p>
           </div>
         )}
@@ -352,20 +359,22 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         <div 
           ref={scrollRef} 
           className="max-h-[500px] overflow-y-auto p-4 mb-6 rounded-md border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 scroll-smooth"
+          aria-live="polite"
         >
           {contractParagraphs.map((paragraph, index) => (
             <p 
               key={index} 
               id={`paragraph-${index}`}
               ref={currentSpeakingIndex === index ? (el) => { activeElementRef.current = el; } : null}
-              className={`mb-3 transition-all duration-300 ${
+              className={`mb-3 transition-all duration-300 text-lg ${
                 currentSpeakingIndex === index
                   ? `${isDarkMode 
-                      ? 'bg-blue-900/90 text-white font-medium text-lg px-6 py-4 rounded-lg shadow-lg border-l-8 border-blue-400 -mx-2 my-4' 
-                      : 'bg-blue-100 text-blue-900 font-medium text-lg px-6 py-4 rounded-lg shadow-md border-l-8 border-blue-500 -mx-2 my-4'
+                      ? 'bg-blue-900/90 text-white font-medium text-xl px-6 py-4 rounded-lg shadow-lg border-l-8 border-blue-400 -mx-2 my-4' 
+                      : 'bg-blue-100 text-blue-900 font-medium text-xl px-6 py-4 rounded-lg shadow-md border-l-8 border-blue-500 -mx-2 my-4'
                     }`
                   : ''
               }`}
+              aria-current={currentSpeakingIndex === index ? "true" : "false"}
             >
               {paragraph || '\u00A0'}
             </p>
@@ -375,16 +384,17 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         <div className="text-center">
           {readingFinished ? (
             <div className={`p-4 rounded-md mb-4 ${isDarkMode ? 'bg-green-900/30 border border-green-700/50' : 'bg-green-50 border border-green-200'}`}>
-              <p className={`${isDarkMode ? 'text-green-300' : 'text-green-700'} font-semibold`}>
+              <p className={`${isDarkMode ? 'text-green-300' : 'text-green-700'} font-semibold text-lg`}>
                 Sözleşme okunması tamamlanmıştır. Kayıt formuna geçmek için aşağıdaki butona tıklayınız.
               </p>
-              <p className={`mt-2 ${isDarkMode ? 'text-green-200' : 'text-green-600'}`}>
-                Lütfen kayıt formunu eksiksiz ve doğru bir şekilde doldurunuz. Form doldurulduktan sonra çıktısını alıp, 
-                imzalayarak görevli personele teslim etmeniz gerekmektedir.
+              <p className={`mt-3 ${isDarkMode ? 'text-green-200' : 'text-green-600'} text-lg font-medium`}>
+                <strong>Önemli Hatırlatma:</strong> Kayıt formunu eksiksiz doldurduktan sonra, çıktısını alıp imzalayarak 
+                sağ tarafta bulunan başvuru kutusuna bırakmanız gerekmektedir. Size verilen kağıt ve kalemi kullanarak 
+                formu doldurabilirsiniz.
               </p>
             </div>
           ) : (
-            <p className={`${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'} font-bold mb-4`}>
+            <p className={`${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'} font-bold mb-4 text-lg`}>
               {isReading ? "Sözleşme okunuyor, lütfen bekleyiniz..." : "Sözleşmeyi anladıktan sonra aşağıdaki butonla devam ediniz."}
             </p>
           )}
@@ -392,9 +402,10 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
       </CardContent>
       <CardFooter className="flex justify-center">
         <Button 
-          className={`${isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-8 py-6 text-lg`}
+          className={`${isDarkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-600 hover:bg-blue-700'} text-white px-8 py-6 text-xl`}
           onClick={onComplete}
           disabled={isReading && !readingFinished}
+          aria-label="Sözleşmeyi anladım, kayıt formuna geç"
         >
           {isReading && !readingFinished ? "Sözleşme Okunuyor..." : "Sözleşmeyi Anladım"}
         </Button>

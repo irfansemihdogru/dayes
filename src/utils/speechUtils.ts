@@ -98,9 +98,9 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
   utterance.lang = 'tr-TR';
   
   // Consistent speech parameters
-  utterance.rate = 0.95; // Slightly slower than default for better clarity
-  utterance.pitch = 1;   // Normal pitch
-  utterance.volume = 1;  // Full volume
+  utterance.rate = 0.9;   // Slightly slower than default for better clarity
+  utterance.pitch = 1;    // Normal pitch
+  utterance.volume = 1;   // Full volume
   
   // Try to use a Turkish voice if available
   const turkishVoice = getBestTurkishVoice();
@@ -110,6 +110,68 @@ const forceConsistentVoiceSettings = (utterance: SpeechSynthesisUtterance): void
   } else {
     console.warn('No suitable voice found for Turkish');
   }
+};
+
+// Fix for utterance not completing in some browsers
+const fixChromeSpeechSynthesisBug = (utterance: SpeechSynthesisUtterance): void => {
+  // Chrome has a bug where utterances longer than ~200 characters can get cut off
+  // Split very long text into shorter segments to prevent this
+  const maxLength = 120;
+  
+  if (utterance.text.length > maxLength) {
+    // Create a proper sentence boundary split
+    const segments = splitTextIntoSentences(utterance.text, maxLength);
+    
+    // Instead of one long utterance, queue multiple shorter ones
+    segments.forEach((segment, index) => {
+      const newUtterance = new SpeechSynthesisUtterance(segment);
+      
+      // Copy all properties from the original utterance
+      newUtterance.voice = utterance.voice;
+      newUtterance.rate = utterance.rate;
+      newUtterance.pitch = utterance.pitch;
+      newUtterance.volume = utterance.volume;
+      
+      // Only attach end event to the last segment
+      if (index === segments.length - 1 && utterance.onend) {
+        newUtterance.onend = utterance.onend;
+      }
+      
+      // Queue the segment with a small delay
+      setTimeout(() => {
+        window.speechSynthesis.speak(newUtterance);
+      }, 50 * index);
+    });
+    
+    // Return true to indicate we've handled this utterance specially
+    return true;
+  }
+  
+  return false;
+};
+
+// Split text into sentences, trying to keep sentences intact
+const splitTextIntoSentences = (text: string, maxLength: number): string[] => {
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const result: string[] = [];
+  let currentChunk = '';
+  
+  for (const sentence of sentences) {
+    // If adding this sentence would exceed maxLength, push current chunk and start a new one
+    if (currentChunk.length + sentence.length > maxLength && currentChunk.length > 0) {
+      result.push(currentChunk.trim());
+      currentChunk = sentence;
+    } else {
+      currentChunk += sentence;
+    }
+  }
+  
+  // Add any remaining text
+  if (currentChunk.length > 0) {
+    result.push(currentChunk.trim());
+  }
+  
+  return result;
 };
 
 // Ensure speech synthesis is properly terminated between utterances
@@ -174,7 +236,7 @@ const processSpeechQueue = () => {
     isSpeaking = false;
     currentUtterance = null;
     if (item.options.onEnd) item.options.onEnd();
-    setTimeout(() => processSpeechQueue(), 100); // Process next item with a small delay
+    setTimeout(() => processSpeechQueue(), 150); // Process next item with a small delay
   };
   
   utterance.onerror = (event) => {
@@ -182,11 +244,24 @@ const processSpeechQueue = () => {
     isSpeaking = false;
     currentUtterance = null;
     if (item.options.onEnd) item.options.onEnd();
-    setTimeout(() => processSpeechQueue(), 100);
+    setTimeout(() => processSpeechQueue(), 150);
   };
   
+  // Implement workaround for Chrome bug with long text
+  // If we've handled it specially, return early
+  if (fixChromeSpeechSynthesisBug(utterance)) {
+    // Set timeout to mark speaking as done after estimated duration
+    const estimatedDuration = Math.min((item.text.length * 80) + 2000, 15000);
+    setTimeout(() => {
+      isSpeaking = false;
+      if (item.options.onEnd) item.options.onEnd();
+      processSpeechQueue();
+    }, estimatedDuration);
+    return;
+  }
+  
   // Fallback for browsers that don't properly fire events
-  const estimatedDuration = Math.min((item.text.length * 60) + 1000, 10000); // Cap at 10 seconds max
+  const estimatedDuration = Math.min((item.text.length * 80) + 2000, 15000); // Cap at 15 seconds max
   setTimeout(() => {
     if (isSpeaking) {
       isSpeaking = false;
@@ -233,6 +308,12 @@ export const speakText = (
     return;
   }
   
+  // Preprocess text to remove multiple spaces and normalize whitespace
+  const processedText = text
+    .replace(/\s+/g, ' ')       // Normalize whitespace
+    .replace(/(\d+)\.(\d+)/g, '$1 nokta $2')  // Format decimal numbers for better speech
+    .trim();
+  
   // Cancel existing speech to prevent overlaps
   if (isSpeaking || window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel();
@@ -241,7 +322,7 @@ export const speakText = (
   }
   
   // Add to queue and process
-  speechQueue.push({text, options});
+  speechQueue.push({text: processedText, options});
   processSpeechQueue();
 };
 
