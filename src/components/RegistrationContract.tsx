@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTheme } from '@/context/ThemeContext';
-import { speakText } from '@/utils/speechUtils';
-import { cancelSpeech } from '@/utils/speechUtils';
+
 
 interface RegistrationContractProps {
   onComplete: () => void;
