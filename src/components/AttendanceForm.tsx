@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,7 +107,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
     // Accept any input for name as long as it's not empty
     if (text.trim()) {
       setName(text);
-      setIsListening(false); // Immediately stop listening
+      setIsListening(false); // Immediately stop listening after getting name
       
       // Move to grade selection after a short delay
       setTimeout(() => {

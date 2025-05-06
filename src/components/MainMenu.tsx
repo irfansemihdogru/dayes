@@ -23,12 +23,30 @@ const menuItems: MenuItem[] = [
   { id: 'diploma', name: '6-Diploma İşlemleri' },
 ];
 
+// Operations where microphone should be immediately disabled
+const disableMicrophoneForOperations = ['9-sinif-kayit', 'ogrenci-alma-izni', 'mesem', 'disiplin', 'diploma'];
+
 const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
   const { isDarkMode } = useTheme();
   
   React.useEffect(() => {
     // No announcement on load - this is now handled by the parent component
   }, []);
+  
+  const handleMenuSelection = (itemId: string) => {
+    // If this operation requires immediate microphone disabling, announce it without waiting for speech to end
+    if (disableMicrophoneForOperations.includes(itemId)) {
+      speakText(`${menuItems.find(item => item.id === itemId)?.name || ''} seçildi`);
+      
+      // Immediately proceed without waiting for speech to end
+      onSelection(itemId);
+    } else {
+      // For devamsizlik (operation 4), use the original behavior with onEnd callback
+      speakText(`${menuItems.find(item => item.id === itemId)?.name || ''} seçildi`, {
+        onEnd: () => onSelection(itemId) 
+      });
+    }
+  };
   
   return (
     <Card className={`w-full mx-auto max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
@@ -49,10 +67,8 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
                     : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
                 } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
                 onClick={() => {
-                  // Announce selection for accessibility
-                  speakText(`${item.name} seçildi`, {
-                    onEnd: () => onSelection(item.id) 
-                  });
+                  // Use the new handler function
+                  handleMenuSelection(item.id);
                 }}
                 aria-label={`${item.name} işlemini seçin`}
               >
@@ -73,10 +89,8 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
                     : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
                 } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
                 onClick={() => {
-                  // Announce selection for accessibility
-                  speakText(`${item.name} seçildi`, {
-                    onEnd: () => onSelection(item.id) 
-                  });
+                  // Use the new handler function
+                  handleMenuSelection(item.id);
                 }}
                 aria-label={`${item.name} işlemini seçin`}
               >
