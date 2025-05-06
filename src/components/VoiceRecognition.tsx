@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
@@ -279,6 +280,28 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }
   }, []);
   
+  // Add keyboard shortcut for turning off microphone
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // When Q key is pressed, turn off the microphone
+      if (e.key === 'q' || e.key === 'Q') {
+        console.log('Q key pressed, stopping recognition');
+        stopRecognition();
+        setIsListening(false);
+        
+        if (onListeningEnd) {
+          onListeningEnd();
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [stopRecognition, onListeningEnd]);
+  
   // Check if system is speaking before starting recognition
   useEffect(() => {
     const checkSpeakingInterval = setInterval(() => {
@@ -384,6 +407,14 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }
   }, [isListening]);
   
+  // Function to directly set the listening state
+  const setIsListening = (state: boolean) => {
+    // This is a custom function to handle the listening state externally
+    if (!state) {
+      stopRecognition();
+    }
+  };
+  
   return (
     <div className="mt-4">
       {prompt && (
@@ -424,30 +455,37 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         </div>
       )}
       
-      <div className="flex items-center">
-        {isListening ? (
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <MicIcon 
-                size={24} 
-                className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
-              />
-              {processingVoice && (
-                <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
-              )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          {isListening ? (
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <MicIcon 
+                  size={24} 
+                  className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
+                />
+                {processingVoice && (
+                  <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
+                )}
+              </div>
+              <span className="text-sm text-gray-600">
+                {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
+              </span>
             </div>
-            <span className="text-sm text-gray-600">
-              {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
-            </span>
-          </div>
-        ) : (
-          <div className="flex items-center space-x-2">
-            <MicOffIcon size={24} className="text-gray-400" />
-            <span className="text-sm text-gray-600">
-              {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
-            </span>
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center space-x-2">
+              <MicOffIcon size={24} className="text-gray-400" />
+              <span className="text-sm text-gray-600">
+                {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
+              </span>
+            </div>
+          )}
+        </div>
+        
+        {/* Q keyboard shortcut hint */}
+        <div className="text-sm text-gray-500">
+          Mikrofonu kapatmak için <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded">Q</kbd> tuşuna basın
+        </div>
       </div>
       
       {transcript && (

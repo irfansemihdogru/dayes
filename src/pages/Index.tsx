@@ -390,10 +390,21 @@ const Index = () => {
     }
   };
   
+  // Add keyboard shortcut for Q key to disable microphone globally
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // ESC key to reset app
       if (e.key === 'Escape') {
         resetApp();
+      }
+      
+      // Q key to disable microphone
+      if (e.key === 'q' || e.key === 'Q') {
+        console.log('Q key pressed globally, disabling microphone');
+        setIsListening(false);
+        
+        // Update timestamp to prevent immediate reactivation
+        systemLastSpokeRef.current = Date.now();
       }
     };
     
@@ -559,7 +570,7 @@ const Index = () => {
         clearTimeout(voiceCommandTimeoutRef.current);
       }
       
-      // Temporarily disable listening while processing command
+      // Immediately disable listening while processing command
       setIsListening(false);
       
       // Process the voice command
@@ -698,10 +709,8 @@ const Index = () => {
       isListening: isListening && !contractReadingActive,
       onResult: handleVoiceResult,
       onListeningEnd: () => {
-        // Only automatically turn off the microphone in main menu, not in grade selection
-        if (appState === 'main-menu') {
-          setIsListening(false);
-        }
+        // Immediately turn off the microphone after processing any voice command
+        setIsListening(false);
       },
       prompt: voicePrompt,
       systemLastSpokeTimestamp: systemLastSpokeRef.current,

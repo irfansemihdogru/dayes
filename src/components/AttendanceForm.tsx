@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,14 +122,15 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   };
   
   const handleGradeVoiceResult = (text: string) => {
+    // Immediately stop listening after any grade input
+    setIsListening(false);
+    
     // Ignore inputs that come too soon after system speech (probably self-triggered)
     const timeSinceSystemSpoke = Date.now() - systemLastSpokeRef.current;
     if (timeSinceSystemSpoke < bufferTimeAfterSpeechMs) {
       console.log(`Ignoring voice input that came too soon (${timeSinceSystemSpoke}ms) after system speech`);
       return;
     }
-    
-    setIsListening(false); // Immediately stop listening
     
     // Try to extract the grade from the spoken text
     const lowerText = text.toLowerCase();
@@ -197,6 +197,23 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       }
     });
   };
+  
+  // Add keyboard shortcut for turning off microphone
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // When Q key is pressed, turn off the microphone
+      if (e.key === 'q' || e.key === 'Q') {
+        console.log('Q key pressed, stopping microphone');
+        setIsListening(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
   
   // Props to pass to VoiceRecognition component
   const getVoiceRecognitionProps = () => {
@@ -296,6 +313,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         
         <div className="mt-6 text-center text-sm text-gray-600" aria-live="polite">
           <p>Ana ekrana dönmek için ESC tuşuna basabilirsiniz</p>
+          <p className="mt-1">Mikrofonu kapatmak için Q tuşuna basabilirsiniz</p>
         </div>
       </CardContent>
     </Card>
