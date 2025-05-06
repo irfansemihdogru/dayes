@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
@@ -39,7 +40,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   onListeningEnd,
   prompt,
   systemLastSpokeTimestamp = 0,
-  bufferTimeMs = 1000 // Increased buffer time for better reliability
+  bufferTimeMs = 1000
 }) => {
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +52,14 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const retryCountRef = useRef(0);
   const maxRetries = 3;
   const systemSpeakingTimestampRef = useRef<number>(systemLastSpokeTimestamp);
-  const recognitionBufferTimeMs = bufferTimeMs; // Buffer time after system speech before accepting commands
-  const speechResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastResultTimestampRef = useRef<number>(0); // Track when we last processed a result
-  const minTimeBetweenResultsMs = 1500; // Minimum time between processing results
+  const recognitionBufferTimeMs = bufferTimeMs; // Wait time after system speech before accepting commands
   
   // Update the timestamp ref when the prop changes
   useEffect(() => {
     systemSpeakingTimestampRef.current = systemLastSpokeTimestamp;
   }, [systemLastSpokeTimestamp]);
   
-  // Initialize speech recognition with improved settings
+  // Initialize speech recognition
   const initRecognition = useCallback(() => {
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -92,60 +90,26 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           return;
         }
         
-        // Check if enough time has passed since we last processed a result
-        const timeSinceLastResult = currentTime - lastResultTimestampRef.current;
-        if (timeSinceLastResult < minTimeBetweenResultsMs) {
-          console.log(`Ignoring voice input, last result processed ${timeSinceLastResult}ms ago (min: ${minTimeBetweenResultsMs}ms)`);
-          return;
-        }
-        
         setTranscript(transcriptValue);
         
-        // Clear any existing timeout to prevent premature processing
-        if (speechResultTimeoutRef.current) {
-          clearTimeout(speechResultTimeoutRef.current);
-        }
-        
         if (result.isFinal) {
-          // Process the final result immediately
-          lastResultTimestampRef.current = currentTime;
           setProcessingVoice(true);
           onResult(transcriptValue);
           
           // Auto-disable microphone after receiving a command
-          stopRecognition();
-          if (onListeningEnd) {
-            onListeningEnd();
-          }
-          setProcessingVoice(false);
-          setTranscript('');
-        } else {
-          // Set a timeout to process the interim result if no final result comes
-          // This makes the system more responsive to voice
-          speechResultTimeoutRef.current = setTimeout(() => {
-            if (transcriptValue.trim().length > 1) {
-              lastResultTimestampRef.current = currentTime;
-              setProcessingVoice(true);
-              onResult(transcriptValue);
-              
-              stopRecognition();
-              if (onListeningEnd) {
-                onListeningEnd();
-              }
-              setProcessingVoice(false);
-              setTranscript('');
+          setTimeout(() => {
+            stopRecognition();
+            if (onListeningEnd) {
+              onListeningEnd();
             }
-          }, 800); // Wait for 800ms before accepting interim result
+            setProcessingVoice(false);
+            setTranscript('');
+          }, 500);
         }
       };
       
       recognition.onerror = (event) => {
         console.error('Speech recognition error', event.error);
-        
-        // Clear any pending result timeout
-        if (speechResultTimeoutRef.current) {
-          clearTimeout(speechResultTimeoutRef.current);
-        }
         
         if (event.error === 'aborted') {
           // Don't show error for aborted, just retry
@@ -172,11 +136,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       recognition.onend = () => {
         console.log('Speech recognition session ended');
         isRecognitionActiveRef.current = false;
-        
-        // Clear any pending result timeout
-        if (speechResultTimeoutRef.current) {
-          clearTimeout(speechResultTimeoutRef.current);
-        }
         
         // Only try to restart if we're still supposed to be listening and not speaking
         if (isListening && !isCurrentlySpeaking()) {
@@ -271,12 +230,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   }, [initRecognition, isListening, recognitionBufferTimeMs]);
   
   const stopRecognition = useCallback(() => {
-    // Clear any pending result timeout
-    if (speechResultTimeoutRef.current) {
-      clearTimeout(speechResultTimeoutRef.current);
-      speechResultTimeoutRef.current = null;
-    }
-    
     if (!isRecognitionActiveRef.current || !recognitionRef.current) {
       return;
     }
@@ -338,22 +291,10 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     } else {
       stopRecognition();
       setTranscript('');
-      
-      // Clear any pending result timeout
-      if (speechResultTimeoutRef.current) {
-        clearTimeout(speechResultTimeoutRef.current);
-        speechResultTimeoutRef.current = null;
-      }
     }
     
     return () => {
       stopRecognition();
-      
-      // Clear any pending result timeout
-      if (speechResultTimeoutRef.current) {
-        clearTimeout(speechResultTimeoutRef.current);
-        speechResultTimeoutRef.current = null;
-      }
     };
   }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
   
@@ -394,7 +335,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       checkMicrophoneAccess();
     }
   }, [isListening]);
-
+  
   return (
     <div className="mt-4">
       {prompt && (

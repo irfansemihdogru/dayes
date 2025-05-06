@@ -76,7 +76,7 @@ duyduğu benzer konularda danışmanlık alma
 · Okul yönetiminde temsil etme ve edilme 
 Okula Özgü Haklar
 · Özgün eserlerini kamuya sergileme 
-· Ulusal ve uluslar arası etkinliklerde okulu temsil etme de gerekli durumlarda 
+· Ulusal ve uluslar arası etkinliklerde okulu temsil etmede gerekli durumlarda 
 okuldan maddi ve manevi destek alabilme 
 · Ders dışı etkinliklerle ilgili sorumluluklar dâhilinde okulun her türlü 
 olanağından yararlanma 
@@ -149,7 +149,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
   const [isReading, setIsReading] = useState(false);
   const [readingFinished, setReadingFinished] = useState(false);
   const [currentSection, setCurrentSection] = useState<string>("");
-  const [instructionsShown, setInstructionsShown] = useState(false);
+  const [instructionsShown, setInstructionsShown] = useState(true);
   const contractParagraphs = contractText.split('\n');
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeElementRef = useRef<HTMLParagraphElement | null>(null);
@@ -208,12 +208,12 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     }
   }, [currentSpeakingIndex]);
 
-  // Show initial instructions to the user - no visible instructions
+  // Show initial instructions to the user
   const showInitialInstructions = async () => {
-    setInstructionsShown(false);
+    setInstructionsShown(true);
     setIsReading(true);
 
-    // Only the specific requested instruction message
+    // SIMPLIFIED: Only the specific instruction message requested
     const initialInstructions = 
       "Sayın veli sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız.";
     
@@ -297,7 +297,7 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
     setCurrentSpeakingIndex(-1);
     setCurrentSection("SONUÇ");
     
-    // Only the specific instruction message
+    // SIMPLIFIED: Only the specific instruction message repeated
     const finalInstructions = 
       "Sayın veli sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız.";
     
@@ -320,6 +320,25 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         )}
       </CardHeader>
       <CardContent className="p-6">
+        {instructionsShown && (
+          <div className={`mb-4 p-4 rounded-md ${isDarkMode ? 'bg-amber-900/30 border border-amber-700/50' : 'bg-amber-50 border border-amber-200'}`}>
+            <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>
+              Lütfen Dikkat
+            </h3>
+            <p className={`${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>
+              Sayın veli, 9. sınıf kayıt sözleşmesini dinlemeye başlamak üzeresiniz. 
+              Bu sözleşme, öğrenci, veli ve okul arasındaki karşılıklı hak ve sorumlulukları belirleyen yasal bir dokümandır.
+              Lütfen sözleşmeyi dikkatle dinleyiniz. Okunan paragraf ekranda vurgulanacaktır.
+            </p>
+            <p className={`mt-2 ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>
+              Sözleşme okunurken lütfen bekleyiniz ve sözleşme tamamlanana kadar sayfadan ayrılmayınız.
+            </p>
+            <p className={`mt-2 font-medium ${isDarkMode ? 'text-amber-300' : 'text-amber-800'}`}>
+              Sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakınız.
+            </p>
+          </div>
+        )}
+        
         <div 
           ref={scrollRef} 
           className="max-h-[500px] overflow-y-auto p-4 mb-6 rounded-md border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 scroll-smooth"
@@ -345,9 +364,18 @@ const RegistrationContract: React.FC<RegistrationContractProps> = ({ onComplete 
         
         <div className="text-center">
           {readingFinished ? (
-            <p className={`${isDarkMode ? 'text-green-300' : 'text-green-700'} font-semibold`}>
-              Sözleşme okunması tamamlanmıştır. Kayıt formuna geçmek için aşağıdaki butona tıklayınız.
-            </p>
+            <div className={`p-4 rounded-md mb-4 ${isDarkMode ? 'bg-green-900/30 border border-green-700/50' : 'bg-green-50 border border-green-200'}`}>
+              <p className={`${isDarkMode ? 'text-green-300' : 'text-green-700'} font-semibold`}>
+                Sözleşme okunması tamamlanmıştır. Kayıt formuna geçmek için aşağıdaki butona tıklayınız.
+              </p>
+              <p className={`mt-2 ${isDarkMode ? 'text-green-200' : 'text-green-600'}`}>
+                Lütfen kayıt formunu eksiksiz ve doğru bir şekilde doldurunuz. Form doldurulduktan sonra çıktısını alıp, 
+                imzalayarak görevli personele teslim etmeniz gerekmektedir.
+              </p>
+              <p className={`mt-2 font-medium ${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>
+                Ayrıca sözleşmeyi anladıktan sonra lütfen aşağıda bulunan kağıdı doğru bir şekilde doldurup kutuya bırakmayı unutmayınız.
+              </p>
+            </div>
           ) : (
             <p className={`${isDarkMode ? 'text-yellow-300' : 'text-yellow-600'} font-bold mb-4`}>
               {isReading ? "Sözleşme okunuyor, lütfen bekleyiniz..." : "Sözleşmeyi anladıktan sonra aşağıdaki butonla devam ediniz."}
