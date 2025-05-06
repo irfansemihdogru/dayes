@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +11,7 @@ interface MenuItem {
 
 interface MainMenuProps {
   onSelection: (selection: string) => void;
+  stopMicrophone?: () => void; // ✅ Yeni prop eklendi
 }
 
 const menuItems: MenuItem[] = [
@@ -23,31 +23,28 @@ const menuItems: MenuItem[] = [
   { id: 'diploma', name: '6-Diploma İşlemleri' },
 ];
 
-// Operations where microphone should be immediately disabled
+// Mikrofonun anında kapatılacağı işlemler
 const disableMicrophoneForOperations = ['9-sinif-kayit', 'ogrenci-alma-izni', 'mesem', 'disiplin', 'diploma'];
 
-const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
+const MainMenu: React.FC<MainMenuProps> = ({ onSelection, stopMicrophone }) => {
   const { isDarkMode } = useTheme();
-  
-  React.useEffect(() => {
-    // No announcement on load - this is now handled by the parent component
-  }, []);
-  
+
   const handleMenuSelection = (itemId: string) => {
-    // If this operation requires immediate microphone disabling, announce it without waiting for speech to end
+    const selectedItem = menuItems.find(item => item.id === itemId);
+    const itemName = selectedItem?.name || '';
+
+    if (stopMicrophone) stopMicrophone(); // ✅ Mikrofonu kapat
+
     if (disableMicrophoneForOperations.includes(itemId)) {
-      speakText(`${menuItems.find(item => item.id === itemId)?.name || ''} seçildi`);
-      
-      // Immediately proceed without waiting for speech to end
+      speakText(`${itemName} seçildi`);
       onSelection(itemId);
     } else {
-      // For devamsizlik (operation 4), use the original behavior with onEnd callback
-      speakText(`${menuItems.find(item => item.id === itemId)?.name || ''} seçildi`, {
-        onEnd: () => onSelection(itemId) 
+      speakText(`${itemName} seçildi`, {
+        onEnd: () => onSelection(itemId)
       });
     }
   };
-  
+
   return (
     <Card className={`w-full mx-auto max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
       <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg`}>
@@ -55,7 +52,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
       </CardHeader>
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* First three menu items on the left */}
+          {/* İlk üç buton */}
           <div className="space-y-4">
             {menuItems.slice(0, 3).map((item) => (
               <Button
@@ -66,18 +63,15 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
                     ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
                     : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
                 } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
-                onClick={() => {
-                  // Use the new handler function
-                  handleMenuSelection(item.id);
-                }}
+                onClick={() => handleMenuSelection(item.id)}
                 aria-label={`${item.name} işlemini seçin`}
               >
                 {item.name}
               </Button>
             ))}
           </div>
-          
-          {/* Last three menu items on the right */}
+
+          {/* Son üç buton */}
           <div className="space-y-4">
             {menuItems.slice(3).map((item) => (
               <Button
@@ -88,10 +82,7 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
                     ? 'bg-gray-800/80 border-blue-700 hover:bg-blue-900 hover:text-blue-200 text-blue-200' 
                     : 'border-blue-300 hover:bg-blue-50 hover:text-blue-800 text-blue-700'
                 } transition-all focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800`}
-                onClick={() => {
-                  // Use the new handler function
-                  handleMenuSelection(item.id);
-                }}
+                onClick={() => handleMenuSelection(item.id)}
                 aria-label={`${item.name} işlemini seçin`}
               >
                 {item.name}
