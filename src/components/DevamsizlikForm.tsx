@@ -7,6 +7,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { speakText } from '@/utils/speechUtils';
 import VoiceRecognition from './VoiceRecognition';
 import { cancelSpeech } from '@/utils/speechUtils';
+import { isMicrophoneAccessAllowed } from '@/utils/microphoneAccessControl';
 
 interface DevamsizlikFormProps {
   onSubmit: (name: string, surname: string) => void;
@@ -20,29 +21,41 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
   const [processingVoice, setProcessingVoice] = useState(false);
   const [speakingComplete, setSpeakingComplete] = useState(false);
   
+  // Check if microphone is allowed on this route
   useEffect(() => {
-    // Start voice recognition after a short delay
-    const timer = setTimeout(() => {
-      // Announce the prompt for name and surname input
-      speakText('Lütfen öğrencinin adını ve soyadını söyleyiniz', {
-        onStart: () => {
-          setSpeakingComplete(false);
-        },
-        onEnd: () => {
-          setSpeakingComplete(true);
-          setTimeout(() => {
-            setIsListening(true);
-          }, 300);
-        }
-      });
-    }, 500);
+    const micAllowed = isMicrophoneAccessAllowed();
     
-    return () => {
-      clearTimeout(timer);
-      cancelSpeech();
-    };
+    if (!micAllowed) {
+      console.log('Microphone access not allowed on this route, disabling voice recognition');
+      setIsListening(false);
+      return;
+    }
+    
+    // Only start voice recognition if we're allowed to use the microphone
+    if (micAllowed) {
+      // Start voice recognition after a short delay
+      const timer = setTimeout(() => {
+        // Announce the prompt for name and surname input
+        speakText('Lütfen öğrencinin adını ve soyadını söyleyiniz', {
+          onStart: () => {
+            setSpeakingComplete(false);
+          },
+          onEnd: () => {
+            setSpeakingComplete(true);
+            setTimeout(() => {
+              setIsListening(true);
+            }, 300);
+          }
+        });
+      }, 500);
+      
+      return () => {
+        clearTimeout(timer);
+        cancelSpeech();
+      };
+    }
   }, []);
-
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -55,6 +68,8 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
   };
   
   const handleVoiceResult = (text: string) => {
+    // Immediately turn off microphone after getting a result
+    setIsListening(false);
     setProcessingVoice(true);
     console.log("Voice recognition result:", text);
     
@@ -96,7 +111,6 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
       });
     }
   };
-
   
   return (
     <Card className={`w-full mx-auto max-w-2xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
@@ -140,26 +154,28 @@ const DevamsizlikForm: React.FC<DevamsizlikFormProps> = ({ onSubmit }) => {
           </CardFooter>
         </form>
         
-        {/* Voice Recognition Section */}
-        <div className="mt-6 border-t pt-4 border-gray-200 dark:border-gray-700">
-          <p className={`mb-3 text-center ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
-            Öğrenci adını ve soyadını sesli olarak söyleyebilirsiniz
-          </p>
-          <VoiceRecognition
-            isListening={isListening && speakingComplete}
-            onResult={handleVoiceResult}
-            onListeningEnd={() => setIsListening(false)}
-            prompt="Lütfen öğrencinin adını ve soyadını söyleyiniz"
-          />
-          
-          {processingVoice && (
-            <div className="mt-3 text-center">
-              <p className="text-green-600 dark:text-green-400 animate-pulse">
-                İşleniyor...
-              </p>
-            </div>
-          )}
-        </div>
+        {/* Voice Recognition Section - only if microphone access is allowed */}
+        {isMicrophoneAccessAllowed() && (
+          <div className="mt-6 border-t pt-4 border-gray-200 dark:border-gray-700">
+            <p className={`mb-3 text-center ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+              Öğrenci adını ve soyadını sesli olarak söyleyebilirsiniz
+            </p>
+            <VoiceRecognition
+              isListening={isListening && speakingComplete}
+              onResult={handleVoiceResult}
+              onListeningEnd={() => setIsListening(false)}
+              prompt="Lütfen öğrencinin adını ve soyadını söyleyiniz"
+            />
+            
+            {processingVoice && (
+              <div className="mt-3 text-center">
+                <p className="text-green-600 dark:text-green-400 animate-pulse">
+                  İşleniyor...
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
