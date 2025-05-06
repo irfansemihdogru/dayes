@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
@@ -40,7 +39,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   onListeningEnd,
   prompt,
   systemLastSpokeTimestamp = 0,
-  bufferTimeMs = 1000
+  bufferTimeMs = 800 // Reduced buffer time for better responsiveness
 }) => {
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -52,14 +51,15 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const retryCountRef = useRef(0);
   const maxRetries = 3;
   const systemSpeakingTimestampRef = useRef<number>(systemLastSpokeTimestamp);
-  const recognitionBufferTimeMs = bufferTimeMs; // Wait time after system speech before accepting commands
+  const recognitionBufferTimeMs = bufferTimeMs; // Buffer time after system speech before accepting commands
+  const speechResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Update the timestamp ref when the prop changes
   useEffect(() => {
     systemSpeakingTimestampRef.current = systemLastSpokeTimestamp;
   }, [systemLastSpokeTimestamp]);
   
-  // Initialize speech recognition
+  // Initialize speech recognition with improved settings
   const initRecognition = useCallback(() => {
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -92,24 +92,49 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         
         setTranscript(transcriptValue);
         
+        // Clear any existing timeout to prevent premature processing
+        if (speechResultTimeoutRef.current) {
+          clearTimeout(speechResultTimeoutRef.current);
+        }
+        
         if (result.isFinal) {
+          // Process the final result immediately
           setProcessingVoice(true);
           onResult(transcriptValue);
           
           // Auto-disable microphone after receiving a command
-          setTimeout(() => {
-            stopRecognition();
-            if (onListeningEnd) {
-              onListeningEnd();
+          stopRecognition();
+          if (onListeningEnd) {
+            onListeningEnd();
+          }
+          setProcessingVoice(false);
+          setTranscript('');
+        } else {
+          // Set a timeout to process the interim result if no final result comes
+          // This makes the system more responsive to voice
+          speechResultTimeoutRef.current = setTimeout(() => {
+            if (transcriptValue.trim().length > 1) {
+              setProcessingVoice(true);
+              onResult(transcriptValue);
+              
+              stopRecognition();
+              if (onListeningEnd) {
+                onListeningEnd();
+              }
+              setProcessingVoice(false);
+              setTranscript('');
             }
-            setProcessingVoice(false);
-            setTranscript('');
-          }, 500);
+          }, 800); // Wait for 800ms before accepting interim result
         }
       };
       
       recognition.onerror = (event) => {
         console.error('Speech recognition error', event.error);
+        
+        // Clear any pending result timeout
+        if (speechResultTimeoutRef.current) {
+          clearTimeout(speechResultTimeoutRef.current);
+        }
         
         if (event.error === 'aborted') {
           // Don't show error for aborted, just retry
@@ -136,6 +161,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       recognition.onend = () => {
         console.log('Speech recognition session ended');
         isRecognitionActiveRef.current = false;
+        
+        // Clear any pending result timeout
+        if (speechResultTimeoutRef.current) {
+          clearTimeout(speechResultTimeoutRef.current);
+        }
         
         // Only try to restart if we're still supposed to be listening and not speaking
         if (isListening && !isCurrentlySpeaking()) {
@@ -230,6 +260,12 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   }, [initRecognition, isListening, recognitionBufferTimeMs]);
   
   const stopRecognition = useCallback(() => {
+    // Clear any pending result timeout
+    if (speechResultTimeoutRef.current) {
+      clearTimeout(speechResultTimeoutRef.current);
+      speechResultTimeoutRef.current = null;
+    }
+    
     if (!isRecognitionActiveRef.current || !recognitionRef.current) {
       return;
     }
@@ -291,10 +327,22 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     } else {
       stopRecognition();
       setTranscript('');
+      
+      // Clear any pending result timeout
+      if (speechResultTimeoutRef.current) {
+        clearTimeout(speechResultTimeoutRef.current);
+        speechResultTimeoutRef.current = null;
+      }
     }
     
     return () => {
       stopRecognition();
+      
+      // Clear any pending result timeout
+      if (speechResultTimeoutRef.current) {
+        clearTimeout(speechResultTimeoutRef.current);
+        speechResultTimeoutRef.current = null;
+      }
     };
   }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
   

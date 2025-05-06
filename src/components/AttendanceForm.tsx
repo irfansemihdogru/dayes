@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +20,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSpeakingRef = useRef(false);
   const systemLastSpokeRef = useRef<number>(Date.now());
-  const bufferTimeAfterSpeechMs = 1500; // Buffer time to prevent self-triggering
+  const bufferTimeAfterSpeechMs = 800; // Reduced buffer time for better responsiveness
   
   // Clean up timeouts when unmounting
   useEffect(() => {
@@ -67,7 +66,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         // Update the timestamp when system stops speaking
         systemLastSpokeRef.current = Date.now();
         
-        // Add a longer delay before enabling microphone to prevent self-triggering
+        // Add a buffer before enabling microphone to prevent self-triggering
         setTimeout(() => {
           setIsListening(true);
         }, bufferTimeAfterSpeechMs);
@@ -104,7 +103,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       return;
     }
     
-    // Accept any input for name, no matter how short
+    // Accept any input for name as long as it's not empty
     if (text.trim()) {
       setName(text);
       setIsListening(false); // Immediately stop listening
@@ -113,12 +112,12 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
       setTimeout(() => {
         setStage('grade');
         speakPrompt("Öğrencinin sınıfını söyleyin.");
-      }, 500);
+      }, 300); // Reduced delay for better responsiveness
     } else {
       // If somehow we got empty input, restart listening
       setTimeout(() => {
         setIsListening(true);
-      }, 500);
+      }, 300);
     }
   };
   
@@ -163,7 +162,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         // Submit after speech has finished
         setTimeout(() => {
           onSubmit(name, detectedGrade);
-        }, 500);
+        }, 300); // Reduced delay for better responsiveness
       }
     });
   };
@@ -193,7 +192,7 @@ const AttendanceForm: React.FC<AttendanceFormProps> = ({ onSubmit }) => {
         
         setTimeout(() => {
           onSubmit(name, selectedGrade);
-        }, 500);
+        }, 300); // Reduced delay for better responsiveness
       }
     });
   };
