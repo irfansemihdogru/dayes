@@ -27,40 +27,13 @@ const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
   const { isDarkMode } = useTheme();
   
   React.useEffect(() => {
-    // Announce the page for accessibility when it loads
-    const menuIntro = "Ana menü. Yapmak istediğiniz işlemi seçiniz veya söyleyiniz:";
-    
-    setTimeout(() => {
-      // First announce the intro
-      speakText(menuIntro, {
-        rate: 0.9,
-        onEnd: () => {
-          // Then announce each menu item with a pause between them
-          announceMenuItems(0);
-        }
-      });
-    }, 500);
+    // No announcement on load - this is now handled by the parent component
   }, []);
-  
-  // Function to announce menu items one by one with pauses
-  const announceMenuItems = (index: number) => {
-    if (index >= menuItems.length) return;
-    
-    speakText(menuItems[index].name, {
-      rate: 0.9,
-      onEnd: () => {
-        // Short pause before next item
-        setTimeout(() => {
-          announceMenuItems(index + 1);
-        }, 300);
-      }
-    });
-  };
   
   return (
     <Card className={`w-full mx-auto max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
       <CardHeader className={`${isDarkMode ? 'bg-blue-800 border-blue-700' : 'bg-blue-600'} text-white rounded-t-lg`}>
-        <CardTitle className="text-2xl text-center">Hoşgeldiniz! Yapmak İstediğiniz İşlemi Kısaca Söyleyiniz</CardTitle>
+        <CardTitle className="text-2xl text-center">Yapmak İstediğiniz İşlemi Seçin Veya Sesli Olarak Söyleyin</CardTitle>
       </CardHeader>
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

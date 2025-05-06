@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import SimpleFaceDetection from '@/components/SimpleFaceDetection';
 import MainMenu from '@/components/MainMenu';
@@ -77,12 +76,13 @@ const Index = () => {
   const [contractReadingActive, setContractReadingActive] = useState(false);
   const [lastAppState, setLastAppState] = useState<AppState | null>(null);
   const [promptAlreadyGiven, setPromptAlreadyGiven] = useState(false);
+  const [voiceCommandProcessing, setVoiceCommandProcessing] = useState(false); // Add to track when voice command is being processed
   
   const appInitialized = useRef(false);
   const { theme, isDarkMode } = useTheme();
   const voiceCommandTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const systemLastSpokeRef = useRef<number>(Date.now());
-  const voiceRecognitionBufferTimeMs = 1500; // Buffer time to prevent self-triggering
+  const voiceRecognitionBufferTimeMs = 800; // Reduced buffer time to make voice recognition more responsive
   
   // This effect handles state transitions and prevents overlapping voice commands
   useEffect(() => {
@@ -90,6 +90,7 @@ const Index = () => {
     if (appState !== lastAppState) {
       setLastAppState(appState);
       setPromptAlreadyGiven(false);
+      setVoiceCommandProcessing(false); // Reset processing flag on state change
       
       // When transitioning between states, always cancel any ongoing speech
       // and stop listening to prevent command overlap
@@ -109,7 +110,7 @@ const Index = () => {
       // to ensure any previous speech/recognition is fully stopped
       setTimeout(() => {
         initializeStateVoice(appState);
-      }, 500);
+      }, 300);
     }
   }, [appState]);
   
@@ -136,7 +137,7 @@ const Index = () => {
       case 'main-menu': {
         // Only speak the prompt once
         if (!promptAlreadyGiven) {
-          const prompt = 'Yapmak istediğiniz işlemi söyleyiniz';
+          const prompt = 'Lütfen Yapmak İstediğiniz İşlemi Seçin Veya Sesli Olarak Söyleyin';
           setVoicePrompt(prompt);
           setPromptAlreadyGiven(true);
           
@@ -153,10 +154,13 @@ const Index = () => {
                 // Update timestamp when speech ends
                 systemLastSpokeRef.current = Date.now();
                 
+                // After prompt, announce each menu item
+                announceMenuItems();
+                
                 // Check again if the state is still main-menu and no contract reading is active
                 // Add a buffer time to prevent self-triggering
                 setTimeout(() => {
-                  if (appState === 'main-menu' && !contractReadingActive) {
+                  if (appState === 'main-menu' && !contractReadingActive && !voiceCommandProcessing) {
                     setIsListening(true);
                   }
                 }, voiceRecognitionBufferTimeMs);
@@ -165,14 +169,14 @@ const Index = () => {
           } else {
             // Wait a moment before activating microphone
             setTimeout(() => {
-              if (appState === 'main-menu' && !contractReadingActive) {
+              if (appState === 'main-menu' && !contractReadingActive && !voiceCommandProcessing) {
                 setIsListening(true);
               }
             }, voiceRecognitionBufferTimeMs);
           }
         } else {
           // If prompt already given, just enable listening after buffer time
-          if (!isListening && !isCurrentlySpeaking() && !contractReadingActive) {
+          if (!isListening && !isCurrentlySpeaking() && !contractReadingActive && !voiceCommandProcessing) {
             setTimeout(() => {
               setIsListening(true);
             }, voiceRecognitionBufferTimeMs);
@@ -204,7 +208,7 @@ const Index = () => {
                 // Check again if the state is still grade-selection and no contract reading is active
                 // Add a buffer time to prevent self-triggering
                 setTimeout(() => {
-                  if (appState === 'grade-selection' && !contractReadingActive) {
+                  if (appState === 'grade-selection' && !contractReadingActive && !voiceCommandProcessing) {
                     setIsListening(true);
                   }
                 }, voiceRecognitionBufferTimeMs);
@@ -213,14 +217,14 @@ const Index = () => {
           } else {
             // Wait a moment before activating microphone
             setTimeout(() => {
-              if (appState === 'grade-selection' && !contractReadingActive) {
+              if (appState === 'grade-selection' && !contractReadingActive && !voiceCommandProcessing) {
                 setIsListening(true);
               }
             }, voiceRecognitionBufferTimeMs);
           }
         } else {
           // If prompt already given, just enable listening after buffer time
-          if (!isListening && !isCurrentlySpeaking() && !contractReadingActive) {
+          if (!isListening && !isCurrentlySpeaking() && !contractReadingActive && !voiceCommandProcessing) {
             setTimeout(() => {
               setIsListening(true);
             }, voiceRecognitionBufferTimeMs);
@@ -229,6 +233,46 @@ const Index = () => {
         break;
       }
     }
+  };
+  
+  // Announce menu items - extract to a separate function
+  const announceMenuItems = () => {
+    const menuItems = [
+      '9.Sınıf Kayıt İşlemleri',
+      'Öğrenci İzin İşlemleri',
+      'Mesem Öğrenci İşlemleri',
+      'Devamsızlık İşlemleri',
+      'Disiplin İşlemleri',
+      'Diploma İşlemleri',
+    ];
+    
+    // Small delay before starting to announce menu items
+    setTimeout(() => {
+      let delay = 0;
+      menuItems.forEach((item, index) => {
+        setTimeout(() => {
+          speakText(item, {
+            rate: 0.9,
+            onStart: () => {
+              systemLastSpokeRef.current = Date.now();
+            },
+            onEnd: () => {
+              systemLastSpokeRef.current = Date.now();
+              
+              // Enable listening after the last item is announced
+              if (index === menuItems.length - 1) {
+                setTimeout(() => {
+                  if (appState === 'main-menu' && !contractReadingActive && !voiceCommandProcessing) {
+                    setIsListening(true);
+                  }
+                }, voiceRecognitionBufferTimeMs);
+              }
+            }
+          });
+        }, delay);
+        delay += 1500; // Space announcements 1.5 seconds apart
+      });
+    }, 300);
   };
   
   // Modified effect for contract reading listener
@@ -493,9 +537,9 @@ const Index = () => {
   };
   
   const handleVoiceResult = async (text: string) => {
-    // Ignore voice commands if contract is being read
-    if (contractReadingActive) {
-      console.log("Contract reading active, ignoring voice command");
+    // Ignore voice commands if contract is being read or if we're already processing a voice command
+    if (contractReadingActive || voiceCommandProcessing) {
+      console.log("Contract reading active or already processing a voice command, ignoring");
       return;
     }
     
@@ -507,6 +551,9 @@ const Index = () => {
     }
     
     try {
+      // Set the processing flag to true to prevent duplicate processing
+      setVoiceCommandProcessing(true);
+      
       // Reset timeout when a voice command is received
       if (voiceCommandTimeoutRef.current) {
         clearTimeout(voiceCommandTimeoutRef.current);
@@ -533,7 +580,7 @@ const Index = () => {
           // Update timestamp before speaking
           systemLastSpokeRef.current = Date.now();
           
-          speakText("Lütfen geçerli bir işlem belirtin", {
+          speakText("Lütfen tekrar söyleyiniz", {
             onStart: () => {
               // Update timestamp when speech starts
               systemLastSpokeRef.current = Date.now();
@@ -541,6 +588,9 @@ const Index = () => {
             onEnd: () => {
               // Update timestamp when speech ends
               systemLastSpokeRef.current = Date.now();
+              
+              // Reset the processing flag
+              setVoiceCommandProcessing(false);
               
               // Add buffer time before enabling microphone again
               setTimeout(() => {
@@ -551,6 +601,9 @@ const Index = () => {
             }
           });
         } else {
+          // Reset the processing flag
+          setVoiceCommandProcessing(false);
+          
           // Re-enable listening after a short delay if still in the same state
           setTimeout(() => {
             if (appState === 'main-menu') {
@@ -564,12 +617,15 @@ const Index = () => {
           handleGradeSelection(grade);
           return; // Exit early to prevent re-enabling listening
         } else {
+          // Reset the processing flag
+          setVoiceCommandProcessing(false);
+          
           // If grade is not valid, provide feedback and resume listening
           if (audioEnabled) {
             // Update timestamp before speaking
             systemLastSpokeRef.current = Date.now();
             
-            speakText("Lütfen geçerli bir sınıf belirtin", {
+            speakText("Lütfen tekrar söyleyiniz", {
               onStart: () => {
                 // Update timestamp when speech starts
                 systemLastSpokeRef.current = Date.now();
@@ -598,6 +654,9 @@ const Index = () => {
       }
     } catch (error) {
       console.error("Error processing voice command:", error);
+      
+      // Reset the processing flag
+      setVoiceCommandProcessing(false);
       
       // Re-enable listening after error if still in appropriate state
       setTimeout(() => {
