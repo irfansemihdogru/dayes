@@ -39,7 +39,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   onListeningEnd,
   prompt,
   systemLastSpokeTimestamp = 0,
-  bufferTimeMs = 800 // Reduced buffer time for better responsiveness
+  bufferTimeMs = 1000 // Increased buffer time for better reliability
 }) => {
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +53,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const systemSpeakingTimestampRef = useRef<number>(systemLastSpokeTimestamp);
   const recognitionBufferTimeMs = bufferTimeMs; // Buffer time after system speech before accepting commands
   const speechResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastResultTimestampRef = useRef<number>(0); // Track when we last processed a result
+  const minTimeBetweenResultsMs = 1500; // Minimum time between processing results
   
   // Update the timestamp ref when the prop changes
   useEffect(() => {
@@ -90,6 +92,13 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           return;
         }
         
+        // Check if enough time has passed since we last processed a result
+        const timeSinceLastResult = currentTime - lastResultTimestampRef.current;
+        if (timeSinceLastResult < minTimeBetweenResultsMs) {
+          console.log(`Ignoring voice input, last result processed ${timeSinceLastResult}ms ago (min: ${minTimeBetweenResultsMs}ms)`);
+          return;
+        }
+        
         setTranscript(transcriptValue);
         
         // Clear any existing timeout to prevent premature processing
@@ -99,6 +108,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         
         if (result.isFinal) {
           // Process the final result immediately
+          lastResultTimestampRef.current = currentTime;
           setProcessingVoice(true);
           onResult(transcriptValue);
           
@@ -114,6 +124,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
           // This makes the system more responsive to voice
           speechResultTimeoutRef.current = setTimeout(() => {
             if (transcriptValue.trim().length > 1) {
+              lastResultTimestampRef.current = currentTime;
               setProcessingVoice(true);
               onResult(transcriptValue);
               
@@ -383,7 +394,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       checkMicrophoneAccess();
     }
   }, [isListening]);
-  
+
   return (
     <div className="mt-4">
       {prompt && (

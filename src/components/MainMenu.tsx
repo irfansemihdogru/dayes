@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTheme } from '@/context/ThemeContext';
@@ -25,10 +25,6 @@ const menuItems: MenuItem[] = [
 
 const MainMenu: React.FC<MainMenuProps> = ({ onSelection }) => {
   const { isDarkMode } = useTheme();
-  
-  React.useEffect(() => {
-    // No announcement on load - this is now handled by the parent component
-  }, []);
   
   return (
     <Card className={`w-full mx-auto max-w-4xl ${isDarkMode ? 'bg-gray-800/90 dark:border-gray-700' : 'bg-white/90'} backdrop-blur-sm shadow-lg`}>
