@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTheme } from '@/context/ThemeContext';
-
+import { cancelSpeech, speakText } from '@/utils/speechUtils';
 
 interface RegistrationContractProps {
   onComplete: () => void;
@@ -136,7 +136,7 @@ Okula Özgü Sorumluluklar
 · Okula maddi manevi her türlü katkıda bulunacağım 
 · Çocuğumun internette zararlı içeriklerin yer aldığı sitelere erişmesini 
 engelleyeceğim 
-· .Çocuğumun toplumsal hizmet kurumlarında gönüllü olarak çalışmasını, sosyal 
+· .Çocuğumun toplumsal hizmet kurumlarında gönüllü olarak çal��şmasını, sosyal 
 yardım etkinliklerinde görev almasını destekleyeceğim. 
 Sözleşmenin tarafı olarak yukarıda sunulan hak ve sorumluluklarımı okudum. 
 Haklarıma sahip çıkacağıma ve sorumluluklarımı yerine getireceğime söz 

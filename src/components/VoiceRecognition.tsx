@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
@@ -300,7 +301,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }
   }, []);
   
-  // Add a special effect to fully shut down recognition when routes change
+  // Main useEffect for checking route permissions and managing recognition
   useEffect(() => {
     // Check if we're on an allowed route
     if (!isMicrophoneAccessAllowed()) {
@@ -317,225 +318,194 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       return;
     }
     
-    // Check if system is speaking before starting recognition
-    useEffect(() => {
-      const checkSpeakingInterval = setInterval(() => {
-        // If system is speaking, ensure recognition is stopped
-        if (isCurrentlySpeaking() && isRecognitionActiveRef.current) {
-          console.log("System is speaking, stopping recognition");
-          stopRecognition();
-          // Update the timestamp
-          systemSpeakingTimestampRef.current = Date.now();
-        } 
-        // If system is not speaking and we should be listening, start recognition
-        else if (!isCurrentlySpeaking() && isListening && !isRecognitionActiveRef.current) {
-          // Check if enough time has passed since system spoke
-          const currentTime = Date.now();
-          const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
-          if (timeSinceSystemSpoke > recognitionBufferTimeMs) {
-            console.log("System not speaking for sufficient time, can start recognition");
-            startRecognition();
-          }
-        }
-      }, 300);
-      
-      return () => clearInterval(checkSpeakingInterval);
-    }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
-    
-    // Manage recognition based on isListening prop
-    useEffect(() => {
-      if (isListening && !isCurrentlySpeaking()) {
-        // Check buffer time before starting
+    // Check speaking status interval
+    const checkSpeakingInterval = setInterval(() => {
+      // If system is speaking, ensure recognition is stopped
+      if (isCurrentlySpeaking() && isRecognitionActiveRef.current) {
+        console.log("System is speaking, stopping recognition");
+        stopRecognition();
+        // Update the timestamp
+        systemSpeakingTimestampRef.current = Date.now();
+      } 
+      // If system is not speaking and we should be listening, start recognition
+      else if (!isCurrentlySpeaking() && isListening && !isRecognitionActiveRef.current) {
+        // Check if enough time has passed since system spoke
         const currentTime = Date.now();
         const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
-        
-        if (timeSinceSystemSpoke < recognitionBufferTimeMs) {
-          // Wait until buffer time has passed
-          const waitTime = recognitionBufferTimeMs - timeSinceSystemSpoke + 100;
-          console.log(`Delaying recognition start by ${waitTime}ms`);
-          
-          setTimeout(() => {
-            if (isListening && !isCurrentlySpeaking()) {
-              startRecognition();
-            }
-          }, waitTime);
-        } else {
+        if (timeSinceSystemSpoke > recognitionBufferTimeMs) {
+          console.log("System not speaking for sufficient time, can start recognition");
           startRecognition();
         }
+      }
+    }, 300);
+    
+    // Manage recognition based on isListening prop
+    if (isListening && !isCurrentlySpeaking()) {
+      // Check buffer time before starting
+      const currentTime = Date.now();
+      const timeSinceSystemSpoke = currentTime - systemSpeakingTimestampRef.current;
+      
+      if (timeSinceSystemSpoke < recognitionBufferTimeMs) {
+        // Wait until buffer time has passed
+        const waitTime = recognitionBufferTimeMs - timeSinceSystemSpoke + 100;
+        console.log(`Delaying recognition start by ${waitTime}ms`);
+        
+        setTimeout(() => {
+          if (isListening && !isCurrentlySpeaking()) {
+            startRecognition();
+          }
+        }, waitTime);
       } else {
-        stopRecognition();
-        setTranscript('');
-        
-        // Clear any pending result timeout
-        if (speechResultTimeoutRef.current) {
-          clearTimeout(speechResultTimeoutRef.current);
-          speechResultTimeoutRef.current = null;
-        }
+        startRecognition();
       }
+    } else {
+      stopRecognition();
+      setTranscript('');
       
-      return () => {
-        stopRecognition();
-        
-        // Clear any pending result timeout
-        if (speechResultTimeoutRef.current) {
-          clearTimeout(speechResultTimeoutRef.current);
-          speechResultTimeoutRef.current = null;
-        }
-      };
-    }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
-    
-    // For fallback if speech recognition is not supported
-    const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      setManualInput(e.target.value);
-    };
-    
-    const handleManualSubmit = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (manualInput.trim()) {
-        console.log('Manual input submitted:', manualInput);
-        onResult(manualInput);
-        setManualInput('');
-        
-        // Auto-disable microphone after manual input
-        if (onListeningEnd) {
-          onListeningEnd();
-        }
+      // Clear any pending result timeout
+      if (speechResultTimeoutRef.current) {
+        clearTimeout(speechResultTimeoutRef.current);
+        speechResultTimeoutRef.current = null;
       }
-    };
+    }
     
-    // Check microphone access
-    useEffect(() => {
-      const checkMicrophoneAccess = async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          // We got microphone access
-          stream.getTracks().forEach(track => track.stop()); // Release the microphone
-          console.log('Microphone access granted');
-        } catch (err) {
-          console.error('Microphone access denied:', err);
-          setRecognitionSupported(false);
-        }
-      };
+    // Cleanup on unmount or dependency change
+    return () => {
+      clearInterval(checkSpeakingInterval);
+      stopRecognition();
       
-      if (isListening) {
-        checkMicrophoneAccess();
-      }
-    }, [isListening]);
-    
-    // Function to directly set the listening state
-    const setIsListening = (state: boolean) => {
-      // This is a custom function to handle the listening state externally
-      if (!state) {
-        stopRecognition();
+      // Clear any pending result timeout
+      if (speechResultTimeoutRef.current) {
+        clearTimeout(speechResultTimeoutRef.current);
+        speechResultTimeoutRef.current = null;
       }
     };
-    
-    return (
-      <div className="mt-4">
-        {prompt && (
-          <div className="flex items-center mb-2">
-            <p className="text-lg text-blue-800">{prompt}</p>
-            <button 
-              onClick={() => {
-                if (prompt && 'speechSynthesis' in window) {
-                  // Stop any active recognition
-                  stopRecognition();
-                  // Update timestamp to prevent self-triggering
+  }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
+  
+  // For fallback if speech recognition is not supported
+  const handleManualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setManualInput(e.target.value);
+  };
+  
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualInput.trim()) {
+      console.log('Manual input submitted:', manualInput);
+      onResult(manualInput);
+      setManualInput('');
+      
+      // Auto-disable microphone after manual input
+      if (onListeningEnd) {
+        onListeningEnd();
+      }
+    }
+  };
+  
+  return (
+    <div className="mt-4">
+      {prompt && (
+        <div className="flex items-center mb-2">
+          <p className="text-lg text-blue-800">{prompt}</p>
+          <button 
+            onClick={() => {
+              if (prompt && 'speechSynthesis' in window) {
+                // Stop any active recognition
+                stopRecognition();
+                // Update timestamp to prevent self-triggering
+                systemSpeakingTimestampRef.current = Date.now();
+                
+                cancelSpeech(); // Cancel any ongoing speech
+                
+                const utterance = new SpeechSynthesisUtterance(prompt);
+                utterance.lang = 'tr-TR';
+                utterance.onstart = () => {
+                  // Update timestamp when speech starts
                   systemSpeakingTimestampRef.current = Date.now();
-                  
-                  cancelSpeech(); // Cancel any ongoing speech
-                  
-                  const utterance = new SpeechSynthesisUtterance(prompt);
-                  utterance.lang = 'tr-TR';
-                  utterance.onstart = () => {
-                    // Update timestamp when speech starts
-                    systemSpeakingTimestampRef.current = Date.now();
-                  };
-                  utterance.onend = () => {
-                    // Update timestamp when speech ends
-                    systemSpeakingTimestampRef.current = Date.now();
-                    // Re-enable recognition when prompt reading ends
-                    if (isListening && !isCurrentlySpeaking()) {
-                      setTimeout(() => startRecognition(), recognitionBufferTimeMs);
-                    }
-                  };
-                  window.speechSynthesis.speak(utterance);
-                }
-              }}
-              className="ml-2 p-1 text-blue-600 hover:text-blue-800 focus:outline-none"
-              aria-label="Metni sesli dinle"
-            >
-              <span role="img" aria-label="sesli dinle">🔊</span>
-            </button>
-          </div>
-        )}
-        
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            {isListening ? (
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <MicIcon 
-                    size={24} 
-                    className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
-                  />
-                  {processingVoice && (
-                    <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
-                  )}
-                </div>
-                <span className="text-sm text-gray-600">
-                  {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
-                </span>
+                };
+                utterance.onend = () => {
+                  // Update timestamp when speech ends
+                  systemSpeakingTimestampRef.current = Date.now();
+                  // Re-enable recognition when prompt reading ends
+                  if (isListening && !isCurrentlySpeaking()) {
+                    setTimeout(() => startRecognition(), recognitionBufferTimeMs);
+                  }
+                };
+                window.speechSynthesis.speak(utterance);
+              }
+            }}
+            className="ml-2 p-1 text-blue-600 hover:text-blue-800 focus:outline-none"
+            aria-label="Metni sesli dinle"
+          >
+            <span role="img" aria-label="sesli dinle">🔊</span>
+          </button>
+        </div>
+      )}
+      
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          {isListening ? (
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <MicIcon 
+                  size={24} 
+                  className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
+                />
+                {processingVoice && (
+                  <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
+                )}
               </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <MicOffIcon size={24} className="text-gray-400" />
-                <span className="text-sm text-gray-600">
-                  {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {/* Q keyboard shortcut hint */}
-          <div className="text-sm text-gray-500">
-            Mikrofonu kapatmak için <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded">Q</kbd> tuşuna basın
-          </div>
+              <span className="text-sm text-gray-600">
+                {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2">
+              <MicOffIcon size={24} className="text-gray-400" />
+              <span className="text-sm text-gray-600">
+                {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
+              </span>
+            </div>
+          )}
         </div>
         
-        {transcript && (
-          <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-gray-700" role="status" aria-live="polite">{transcript}</p>
-          </div>
-        )}
-        
-        {error && (
-          <div className="mt-2">
-            <p className="text-red-700 text-sm">{error}</p>
-          </div>
-        )}
-        
-        {/* Manual input as a fallback */}
-        <form onSubmit={handleManualSubmit} className="mt-2 flex">
-          <input
-            type="text"
-            value={manualInput}
-            onChange={handleManualInputChange}
-            placeholder="Sesli komut girmek için buraya yazın"
-            className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Sesli komut giriş alanı"
-          />
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors"
-            aria-label="Komutu gönder"
-          >
-            Gönder
-          </button>
-        </form>
+        {/* Q keyboard shortcut hint */}
+        <div className="text-sm text-gray-500">
+          Mikrofonu kapatmak için <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded">Q</kbd> tuşuna basın
+        </div>
       </div>
-    );
-  }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
+      
+      {transcript && (
+        <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <p className="text-gray-700" role="status" aria-live="polite">{transcript}</p>
+        </div>
+      )}
+      
+      {error && (
+        <div className="mt-2">
+          <p className="text-red-700 text-sm">{error}</p>
+        </div>
+      )}
+      
+      {/* Manual input as a fallback */}
+      <form onSubmit={handleManualSubmit} className="mt-2 flex">
+        <input
+          type="text"
+          value={manualInput}
+          onChange={handleManualInputChange}
+          placeholder="Sesli komut girmek için buraya yazın"
+          className="flex-1 px-4 py-2 border border-blue-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Sesli komut giriş alanı"
+        />
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors"
+          aria-label="Komutu gönder"
+        >
+          Gönder
+        </button>
+      </form>
+    </div>
+  );
 };
 
 export default VoiceRecognition;
