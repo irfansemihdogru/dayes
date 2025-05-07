@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserRoundIcon, MapPinIcon, Volume2Icon, VolumeXIcon, Clock } from 'lucide-react';
+import { speakText, cancelSpeech } from '../utils/speechUtils';
 
 interface StaffRoomInfo {
   name: string;
@@ -50,7 +51,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
 
     return () => {
       clearInterval(timer);
-      window.speechSynthesis.cancel();
+      cancelSpeech();
       
       // Re-enable microphone when leaving this component
       const cleanupEvent = new CustomEvent('contractReading', { 
@@ -67,61 +68,41 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
       // Ensure narration starts properly on page load
       setTimeout(() => {
         // First announcement - short summary
-        speakText(`${staffName}, işlem: ${reason}, oda: ${staffRoomInfo.roomNumber}`);
+        handleSpeak(`${staffName}, işlem: ${reason}, oda: ${staffRoomInfo.roomNumber}`, { rate: 0.95 });
         
         // Full detailed announcement after a short delay
         setTimeout(() => {
           const fullAnnouncement = `${staffName} müdür yardımcısına yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${staffRoomInfo.floor}. kat, ${staffRoomInfo.location} tarafta, ${staffRoomInfo.roomNumber} numaralı oda.`;
-          speakText(fullAnnouncement);
+          handleSpeak(fullAnnouncement, { rate: 0.95 });
         }, 2500);
       }, 500);
     }
   }, [staffName, staffRoomInfo, reason]);
 
-  const speakText = (text: string) => {
-    if (!audioEnabled || !('speechSynthesis' in window)) return;
-
-    // Cancel any previous speech
-    window.speechSynthesis.cancel();
+  const handleSpeak = (text: string, options: any = {}) => {
+    if (!audioEnabled) return;
     
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'tr-TR'; // Force Turkish language
-    utterance.rate = 0.95;    // Slightly slower rate for better comprehension
-    utterance.pitch = 1;
-    utterance.volume = 1;     // Maximum volume
-
-    // Get available voices and try to find Turkish voice
-    const voices = window.speechSynthesis.getVoices();
-    const turkishVoice = voices.find(voice => 
-      voice.lang.includes('tr') || voice.name.includes('Turkish') || voice.name.includes('Türk')
-    );
-    
-    // Use Turkish voice if available
-    if (turkishVoice) {
-      utterance.voice = turkishVoice;
-    }
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      isSpeakingRef.current = true;
-    };
-
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      isSpeakingRef.current = false;
-    };
-
-    window.speechSynthesis.speak(utterance);
+    speakText(text, {
+      ...options,
+      onStart: () => {
+        setIsSpeaking(true);
+        isSpeakingRef.current = true;
+      },
+      onEnd: () => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+      }
+    });
   };
 
   const toggleAudio = () => {
     if (audioEnabled) {
-      window.speechSynthesis.cancel();
+      cancelSpeech();
       setIsSpeaking(false);
     } else {
       // When re-enabling audio, speak the full detailed announcement
-      const fullAnnouncement = `${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${staffRoomInfo.floor}. kat, ${staffRoomInfo.location} tarafta, ${staffRoomInfo.roomNumber} numaralı oda.`;
-      speakText(fullAnnouncement);
+      const fullAnnouncement = `${staffName} müdür yardımcısına yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${staffRoomInfo.floor}. kat, ${staffRoomInfo.location} tarafta, ${staffRoomInfo.roomNumber} numaralı oda.`;
+      handleSpeak(fullAnnouncement, { rate: 0.95 });
     }
     setAudioEnabled(!audioEnabled);
   };
@@ -168,8 +149,8 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         <div className="mt-4 flex justify-center">
           <button
             onClick={() => {
-              const fullAnnouncement = `${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${staffRoomInfo.floor}. kat, ${staffRoomInfo.location} tarafta, ${staffRoomInfo.roomNumber} numaralı oda.`;
-              speakText(fullAnnouncement);
+              const fullAnnouncement = `${staffName} müdür yardımcısına yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${staffRoomInfo.floor}. kat, ${staffRoomInfo.location} tarafta, ${staffRoomInfo.roomNumber} numaralı oda.`;
+              handleSpeak(fullAnnouncement, { rate: 0.95 });
             }}
             disabled={isSpeaking}
             className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white px-4 py-2 rounded hover:shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
