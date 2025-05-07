@@ -71,7 +71,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         
         // Full detailed announcement after a short delay
         setTimeout(() => {
-          const fullAnnouncement = `${staffName} personeline yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${staffRoomInfo.floor}. kat, ${staffRoomInfo.location} tarafta, ${staffRoomInfo.roomNumber} numaralı oda.`;
+          const fullAnnouncement = `${staffName} müdür yardımcısına yönlendiriliyorsunuz. İşlem: ${reason}. Konum: ${staffRoomInfo.floor}. kat, ${staffRoomInfo.location} tarafta, ${staffRoomInfo.roomNumber} numaralı oda.`;
           speakText(fullAnnouncement);
         }, 2500);
       }, 500);
