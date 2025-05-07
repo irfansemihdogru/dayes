@@ -1,8 +1,6 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MicIcon, MicOffIcon, LoaderIcon } from 'lucide-react';
 import { isCurrentlySpeaking, cancelSpeech } from '@/utils/speechUtils';
-import { isMicrophoneAccessAllowed } from '@/utils/microphoneAccessControl';
 
 interface VoiceRecognitionProps {
   isListening: boolean;
@@ -41,14 +39,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   onListeningEnd,
   prompt,
   systemLastSpokeTimestamp = 0,
-  bufferTimeMs = 800
+  bufferTimeMs = 800 // Reduced buffer time for better responsiveness
 }) => {
-  // Safety check - don't even initialize if we're on a restricted route
-  if (!isMicrophoneAccessAllowed()) {
-    console.log('Microphone access not allowed on this route, not initializing VoiceRecognition');
-    return null;
-  }
-
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [recognitionSupported, setRecognitionSupported] = useState(true);
@@ -59,7 +51,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   const retryCountRef = useRef(0);
   const maxRetries = 3;
   const systemSpeakingTimestampRef = useRef<number>(systemLastSpokeTimestamp);
-  const recognitionBufferTimeMs = bufferTimeMs;
+  const recognitionBufferTimeMs = bufferTimeMs; // Buffer time after system speech before accepting commands
   const speechResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Update the timestamp ref when the prop changes
@@ -69,12 +61,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
   
   // Initialize speech recognition with improved settings
   const initRecognition = useCallback(() => {
-    // Skip initialization if we're not allowed to use the microphone on this route
-    if (!isMicrophoneAccessAllowed()) {
-      console.log('Microphone access not allowed on this route');
-      return null;
-    }
-    
     try {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -225,14 +211,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     };
   }, []);
   
-  // Add route-based safety checks to startRecognition
   const startRecognition = useCallback(() => {
-    // Check if microphone access is allowed on this route
-    if (!isMicrophoneAccessAllowed()) {
-      console.log('Microphone access not allowed on this route, aborting recognition start');
-      return;
-    }
-    
     // Don't start if we're already active or if speech synthesis is speaking
     if (isRecognitionActiveRef.current || isCurrentlySpeaking()) {
       console.log('Recognition already active or system is speaking, not starting recognition');
@@ -280,7 +259,6 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }
   }, [initRecognition, isListening, recognitionBufferTimeMs]);
   
-  // Modify the stopRecognition function to log more info
   const stopRecognition = useCallback(() => {
     // Clear any pending result timeout
     if (speechResultTimeoutRef.current) {
@@ -301,24 +279,8 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
     }
   }, []);
   
-  // Main useEffect for checking route permissions and managing recognition
+  // Check if system is speaking before starting recognition
   useEffect(() => {
-    // Check if we're on an allowed route
-    if (!isMicrophoneAccessAllowed()) {
-      console.log('Route does not allow microphone access, shutting down recognition');
-      stopRecognition();
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort(); // Fully terminate the recognition
-        } catch (err) {
-          console.error('Error aborting recognition:', err);
-        }
-        recognitionRef.current = null;
-      }
-      return;
-    }
-    
-    // Check speaking status interval
     const checkSpeakingInterval = setInterval(() => {
       // If system is speaking, ensure recognition is stopped
       if (isCurrentlySpeaking() && isRecognitionActiveRef.current) {
@@ -339,7 +301,11 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       }
     }, 300);
     
-    // Manage recognition based on isListening prop
+    return () => clearInterval(checkSpeakingInterval);
+  }, [isListening, startRecognition, stopRecognition, recognitionBufferTimeMs]);
+  
+  // Manage recognition based on isListening prop
+  useEffect(() => {
     if (isListening && !isCurrentlySpeaking()) {
       // Check buffer time before starting
       const currentTime = Date.now();
@@ -369,9 +335,7 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       }
     }
     
-    // Cleanup on unmount or dependency change
     return () => {
-      clearInterval(checkSpeakingInterval);
       stopRecognition();
       
       // Clear any pending result timeout
@@ -400,6 +364,25 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
       }
     }
   };
+
+  // Check microphone access
+  useEffect(() => {
+    const checkMicrophoneAccess = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // We got microphone access
+        stream.getTracks().forEach(track => track.stop()); // Release the microphone
+        console.log('Microphone access granted');
+      } catch (err) {
+        console.error('Microphone access denied:', err);
+        setRecognitionSupported(false);
+      }
+    };
+    
+    if (isListening) {
+      checkMicrophoneAccess();
+    }
+  }, [isListening]);
   
   return (
     <div className="mt-4">
@@ -441,37 +424,30 @@ const VoiceRecognition: React.FC<VoiceRecognitionProps> = ({
         </div>
       )}
       
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          {isListening ? (
-            <div className="flex items-center space-x-2">
-              <div className="relative">
-                <MicIcon 
-                  size={24} 
-                  className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
-                />
-                {processingVoice && (
-                  <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
-                )}
-              </div>
-              <span className="text-sm text-gray-600">
-                {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
-              </span>
+      <div className="flex items-center">
+        {isListening ? (
+          <div className="flex items-center space-x-2">
+            <div className="relative">
+              <MicIcon 
+                size={24} 
+                className={`text-red-500 ${processingVoice ? 'opacity-50' : 'animate-pulse'}`} 
+              />
+              {processingVoice && (
+                <LoaderIcon size={16} className="absolute top-1 right-1 text-blue-600 animate-spin" />
+              )}
             </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <MicOffIcon size={24} className="text-gray-400" />
-              <span className="text-sm text-gray-600">
-                {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
-              </span>
-            </div>
-          )}
-        </div>
-        
-        {/* Q keyboard shortcut hint */}
-        <div className="text-sm text-gray-500">
-          Mikrofonu kapatmak için <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded">Q</kbd> tuşuna basın
-        </div>
+            <span className="text-sm text-gray-600">
+              {processingVoice ? 'İşleniyor...' : isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Sizi dinliyorum...'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <MicOffIcon size={24} className="text-gray-400" />
+            <span className="text-sm text-gray-600">
+              {isCurrentlySpeaking() ? 'Sistem konuşuyor...' : 'Mikrofon kapalı'}
+            </span>
+          </div>
+        )}
       </div>
       
       {transcript && (
