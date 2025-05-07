@@ -144,7 +144,7 @@ const StaffDirectionResult: React.FC<StaffDirectionResultProps> = ({
         <div className="text-center mb-4">
           <UserRoundIcon className="mx-auto text-blue-600 dark:text-blue-400" size={48} />
           <h2 className="text-xl font-semibold mt-2 text-gray-800 dark:text-gray-100">{staffName}</h2>
-          <p className="text-gray-500 dark:text-gray-400">Personeline yönlendiriliyorsunuz</p>
+          <p className="text-gray-500 dark:text-gray-400">Müdür yardımcısına yönlendiriliyorsunuz</p>
         </div>
 
         <div className="bg-blue-100 dark:bg-blue-900/30 p-4 rounded mb-4">
