@@ -34,7 +34,7 @@ interface StaffRoomInfo {
   floor: number;
   location: string;
   roomNumber: number;
-  title: string;
+  title?: string; // Make title optional to match StaffDirectionResult.tsx
 }
 
 const staffInfo: Record<string, StaffRoomInfo> = {
