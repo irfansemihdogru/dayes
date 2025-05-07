@@ -34,15 +34,16 @@ interface StaffRoomInfo {
   floor: number;
   location: string;
   roomNumber: number;
+  title: string;
 }
 
 const staffInfo: Record<string, StaffRoomInfo> = {
-  'YENER HANCI': { name: 'YENER HANCI', floor: 2, location: 'sol', roomNumber: 24 },
-  'ERDEM ÜÇER': { name: 'ERDEM ÜÇER', floor: 2, location: 'sağ', roomNumber: 15 },
-  'FEHMİ OKŞAK': { name: 'FEHMİ OKŞAK', floor: 3, location: 'sol', roomNumber: 32 },
-  'ÖZLEM KOTANOĞLU': { name: 'ÖZLEM KOTANOĞLU', floor: 1, location: 'koridor sonunda', roomNumber: 8 },
-  'ASUMAN ÖZŞİMŞEKLER': { name: 'ASUMAN ÖZŞİMŞEKLER', floor: 2, location: 'merdiven karşısı', roomNumber: 22 },
-  'OKAN KARAHAN': { name: 'OKAN KARAHAN', floor: 1, location: 'giriş kapısı yanında', roomNumber: 5 },
+  'YENER HANCI': { name: 'YENER HANCI', floor: 2, location: 'sol', roomNumber: 24, title: 'Müdür yardımcısı' },
+  'ERDEM ÜÇER': { name: 'ERDEM ÜÇER', floor: 2, location: 'sağ', roomNumber: 15, title: 'Müdür yardımcısı' },
+  'FEHMİ OKŞAK': { name: 'FEHMİ OKŞAK', floor: 3, location: 'sol', roomNumber: 32, title: 'Müdür yardımcısı' },
+  'ÖZLEM KOTANOĞLU': { name: 'ÖZLEM KOTANOĞLU', floor: 1, location: 'koridor sonunda', roomNumber: 8, title: 'Müdür yardımcısı' },
+  'ASUMAN ÖZŞİMŞEKLER': { name: 'ASUMAN ÖZŞİMŞEKLER', floor: 2, location: 'merdiven karşısı', roomNumber: 22, title: 'Müdür yardımcısı' },
+  'OKAN KARAHAN': { name: 'OKAN KARAHAN', floor: 1, location: 'oda 2', roomNumber: 2, title: 'Müdür yardımcısı' },
 };
 
 const gradeToStaff: StaffMapping = {
@@ -154,7 +155,7 @@ const Index = () => {
                 // Update timestamp when speech ends
                 systemLastSpokeRef.current = Date.now();
                 
-                // After prompt, announce each menu item
+                // Announce each menu item
                 announceMenuItems();
                 
                 // Check again if the state is still main-menu and no contract reading is active
